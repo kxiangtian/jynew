@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Jyx2;
@@ -74,11 +74,16 @@ public class InteractiveObj : MonoBehaviour
         //}
     }
 
+    //BY CGGG：不再需要鼠标点击模式
+    
+    /*
     private void OnMouseEnter()
     {
         if (EventSystem.current.IsPointerOverGameObject())
             return;
         //this.GetComponent<MeshRenderer>().material.color = Color.red;
+        
+        
         UnityTools.HighLightObject(this.gameObject, Color.yellow);
     }
 
@@ -87,6 +92,7 @@ public class InteractiveObj : MonoBehaviour
         //this.GetComponent<MeshRenderer>().material.color = Color.white;
         UnityTools.DisHighLightObject(this.gameObject);
     }
+    */
 
     private void OnMouseUp()
     {

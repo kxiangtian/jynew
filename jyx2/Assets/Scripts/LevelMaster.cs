@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
@@ -10,7 +10,6 @@ using HSFrameWork.ConfigTable;
 using HanSquirrel.ResourceManager;
 using UniRx;
 using System;
-using UnityEditor;
 using Cinemachine;
 
 public class LevelMaster : MonoBehaviour
@@ -76,6 +75,8 @@ public class LevelMaster : MonoBehaviour
 
     public ETCJoystick m_Joystick;
 
+    [HideInInspector]
+    public bool IsInited = false;
 
     [Header("Lock Direction")]
     public float unlockDegee = 10f;
@@ -83,9 +84,6 @@ public class LevelMaster : MonoBehaviour
     //BattleHelper m_BattleHelper;
 
     CameraHelper m_CameraHelper;
-
-    public GameObject m_ExploreSkillPanel;
-    public Text m_ExploreSkillPointText;
 
     bool IsMobilePlatform()
     {
@@ -112,12 +110,26 @@ public class LevelMaster : MonoBehaviour
     // Use this for initialization
     async void Start()
     {
+        //先关闭触发事件
+        GameObject triggers = GameObject.Find("Level/Triggers");
+        if (triggers != null)
+        {
+            foreach (Transform trigger in triggers.transform)
+            {
+                trigger.gameObject.layer = LayerMask.NameToLayer("GameEvent");
+                var c = trigger.gameObject.GetComponent<Collider>();
+                if (c != null)
+                {
+                    c.enabled = false;
+                }
+            }
+        }
+        
+        
         if (RuntimeDataSimulate && runtime == null)
         {
             //测试存档位
             var r = GameRuntimeData.CreateNew();  //选一个没有用过的id
-            MapRuntimeData.Instance.Clear();
-
         }
 
         var brain = Camera.main.GetComponent<CinemachineBrain>();
@@ -125,10 +137,7 @@ public class LevelMaster : MonoBehaviour
         {
             brain.m_DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Style.Cut, 0);
         }
-
-        //m_BattleHelper = GetComponent<BattleHelper>();
-        //m_MobileRotateSlider.SetActive(Application.isMobilePlatform);
-
+        
         //播放音乐
         var gameMap = GetCurrentGameMap();
 
@@ -163,18 +172,6 @@ public class LevelMaster : MonoBehaviour
             }
         }
 
-        //搜索地图中所有MapRole，并绑定数据实例
-        //foreach (var r in FindAllMapRole())
-        //{
-        //    if (string.IsNullOrEmpty(r.m_RoleKey))
-        //        continue;
-
-        //    if (r.DataInstance == null) r.CreateRoleInstance(r.m_RoleKey);
-        //    if (!r.gameObject.activeInHierarchy) r.m_IsWaitingForActive = false;
-
-        //    r.RefreshModel();
-        //}
-
         navPointer = Instantiate(navPointerPrefab);
         navPointer.SetActive(false);
 
@@ -187,9 +184,22 @@ public class LevelMaster : MonoBehaviour
         //尝试绑定主角
         TryBindPlayer();
 
-
         //刷新游戏事件
         RefreshGameEvents();        
+        
+        //全部初始化完以后，激活trigger的触发 
+        triggers = GameObject.Find("Level/Triggers");
+        if (triggers != null)
+        {
+            foreach (Transform trigger in triggers.transform)
+            {
+                var c = trigger.gameObject.GetComponent<Collider>();
+                if(c != null)
+                    c.enabled = true;
+            }
+        }
+
+        IsInited = true;
     }
 
 
@@ -231,13 +241,11 @@ public class LevelMaster : MonoBehaviour
         //大地图或editor上都不显示
         m_Joystick.gameObject.SetActive(IsMobilePlatform() && m_CurrentType != MapType.BigMap);
         m_TouchPad.gameObject.SetActive(IsMobilePlatform() && m_CurrentType != MapType.BigMap);
-        //m_ExploreSkillPanel.SetActive(m_CurrentType == MapType.Explore);
-        m_ExploreSkillPanel.SetActive(false);
+        
         //战斗中移动按钮隐藏
         if (BattleManager.Instance.IsInBattle)
         {
             m_Joystick.gameObject.SetActive(false);
-            m_ExploreSkillPanel.SetActive(false);
         }
     }
 
@@ -345,11 +353,11 @@ public class LevelMaster : MonoBehaviour
         }
         else
         {
-            _playerNavAgent.speed = MapRuntimeData.Instance.ExploreSpeed;
+            _playerNavAgent.speed = GameConst.MapSpeed;
         }
         
-        _playerNavAgent.angularSpeed = MapRuntimeData.Instance.ExploreAngularSpeed;
-        _playerNavAgent.acceleration = MapRuntimeData.Instance.ExploreAcceleration;
+        _playerNavAgent.angularSpeed = GameConst.MapAngularSpeed;
+        _playerNavAgent.acceleration = GameConst.MapAcceleration;
 
         var playerCom = _player.GetComponent<Jyx2Player>();
         if(playerCom == null)
@@ -374,7 +382,16 @@ public class LevelMaster : MonoBehaviour
             SetPlayer(playerObj);
             //添加队友
             //CreateTeammates(gameMap, playerObj.transform);
-		}
+
+            var gameMap = GetCurrentGameMap();
+            if (gameMap != null && gameMap.Tags.Contains("POINTLIGHT")) //点光源
+            {
+                var obj = Jyx2ResourceHelper.CreatePrefabInstance(ConStr.PlayerPointLight);
+                obj.transform.SetParent(playerObj.transform);
+                obj.transform.localPosition = Vector3.zero;
+                obj.transform.localScale = Vector3.one;
+            }
+        }
     }
 
     public void SwitchToBattleUI(bool isOn)
@@ -410,27 +427,6 @@ public class LevelMaster : MonoBehaviour
 
             }
         }
-		var gameMap = GetCurrentGameMap();
-        //退出当前地图
-		// fix to transport to enterance
-		// fix press ESC multi times call multi Bigmap Loading
-		// modified by eaphone at 2021/05/30
-        if(gameMap!=null)
-		{
-			if (Input.GetKeyUp(KeyCode.Escape)&&!isEscPressed)
-			{
-				isEscPressed=true;
-				if (!gameMap.Tags.Contains("WORLDMAP"))
-				{
-					PlayLeaveMusic(gameMap);
-					//退出到大地图
-					// return to entertrance
-					//LevelLoader.LoadGameMap("0_BigMap");
-					QuitToBigMap();
-				}
-			}
-			if(gameMap.Tags.Contains("WORLDMAP")) isEscPressed=false;			
-		}
     }
 	// added by eaphone at 2021/05/30
 	public static bool isEscPressed=false;
@@ -458,6 +454,8 @@ public class LevelMaster : MonoBehaviour
     public void SetPlayerCanController(bool CanController) 
     {
         _CanController = CanController;
+        var player = GetPlayer();
+        player.CanControl(CanController);
     }
     private Action _OnArriveDestination;
     public void PlayerWarkFromTo(Vector3 fromVector,Vector3 toVector, Action callback) 
@@ -697,39 +695,34 @@ public class LevelMaster : MonoBehaviour
     //传送
     public void Transport(string transportName)
     {
-        var rootObj = GameObject.Find("Level/Triggers");
-        var trans = rootObj.transform.Find(transportName);
+        TransportToTransform("Level/Triggers",transportName,"");
+    }
+	
+	public void TransportToTransform(string path, string name, string target)
+	{
+		var rootObj = GameObject.Find(path);
+        var trans = rootObj.transform.Find(name);
 
         if(trans != null)
         {
-            Transport(trans.position);
+			if(target==""){
+				Transport(trans.position);
+			}else{
+				var t=GameObject.Find(target).transform;
+				t.position=trans.position;
+			}
         }
         else
         {
-            Debug.LogError("找不到传送点：" + transportName);
+            Debug.LogError("找不到传送点：" + name);
         }
-    }
+	}
 
     //传送
     public void Transport(Vector3 position)
     {
         _playerNavAgent.Warp(position);
         _player.position = position;
-
-        if (MapRuntimeData.Instance == null || MapRuntimeData.Instance.ExploreTeam == null)
-            return;
-
-        //跟随的npc和teammate一起传送
-        foreach (var role in MapRuntimeData.Instance.ExploreTeam)
-        {
-            //npc传送到离玩家1米以内的随机点
-            var npcPos = _player.position + new Vector3(UnityEngine.Random.Range(-1, 1), 0, UnityEngine.Random.Range(-1, 1));
-            if (role.View != null && role.View.GetComponent<NavMeshAgent>() != null)
-            {
-                role.View.GetComponent<NavMeshAgent>().Warp(npcPos);
-                role.View.transform.position = npcPos;
-            }
-        }
     }
 	
 	// implement change player facing. 0:top-right, 1:down-right, 2:top-left, 3:down-left
@@ -773,11 +766,11 @@ public class LevelMaster : MonoBehaviour
     public Jyx2Player GetPlayer()
     {
 		var player=_player.GetComponent<Jyx2Player>();
-		if(player == null)
-			{
-				player = _player.gameObject.AddComponent<Jyx2Player>();
-				player.Init();
-			}
+        if (player == null)
+        {
+            player = _player.gameObject.AddComponent<Jyx2Player>();
+            player.Init();
+        }
         return player;
     }
 
@@ -863,5 +856,34 @@ public class LevelMaster : MonoBehaviour
             
         }
     }
+	
+	//增加接口修改bigmapzone脚本的command。用于和韦小宝对话后，增加传送韦小宝的逻辑
+	//added by eaphone at 2021/6/8
+	public void ModifyBigmapZoneCmd(string cmd, string target="Leave"){
+		var gameMap = GetCurrentGameMap();
+        if (gameMap == null) return;
+
+        //场景ID
+        string sceneId = gameMap.Jyx2MapId;
+
+        //大地图
+        if (string.IsNullOrEmpty(sceneId))
+            return;
+
+        GameObject obj = GameObject.Find("Level/Triggers/"+target);
+        var evt = obj.GetComponent<BigMapZone>();
+		if (evt != null){
+			string eventId = obj.name;
+			if(target==eventId){
+				try
+				{
+					evt.Command = cmd;
+				}catch(Exception e)
+				{
+					Debug.LogError(e);
+				}
+			}
+		}
+	}
 }
 

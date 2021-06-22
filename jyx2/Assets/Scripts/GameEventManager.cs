@@ -1,8 +1,9 @@
-﻿using Jyx2;
+using Jyx2;
 using HSFrameWork.Common;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,43 +12,8 @@ using UnityEngine.UI;
 /// </summary>
 public class GameEventManager : MonoBehaviour
 {
-    List<GameEvent> CurrentActiveEvents = new List<GameEvent>();
-
     GameEvent curEvent = null;
     const int NO_EVENT = -1;
-
-
-    //void Update()
-    //{
-    //    //有激活事件
-    //    if(CurrentActiveEvents.Count > 0)
-    //    {
-    //        var evt = CurrentActiveEvents[0];
-    //        if (evt == curEvent)
-    //            return;
-
-    //        //关闭之前的事件
-    //        if (curEvent != null && curEvent != evt)
-    //        {
-    //            OnExitEvent(curEvent);
-    //        }
-
-    //        //设置当前事件
-    //        curEvent = evt;
-    //        TryTrigger(evt);
-    //    }
-    //    else
-    //    {
-    //        //没有激活事件
-    //        if (curEvent != null)
-    //        {
-    //            UnityTools.DisHighLightObjects(curEvent.m_EventTargets);
-    //            curEvent = null;
-    //            Jyx2_UIManager.Instance.HideUI("InteractUIPanel");
-    //        }
-    //    }
-    //}
-
 
     bool isEmptyEvent(GameEvent evt)
     {
@@ -107,21 +73,16 @@ public class GameEventManager : MonoBehaviour
         Jyx2_UIManager.Instance.HideUI("InteractUIPanel");
     }
 
-    //void ShowInteractiveButton(string text)
-    //{
-    //    Jyx2_UIManager.Instance.ShowUI("InteractUIPanel", text, new Action(() =>
-    //    {
-    //        ExecuteLuaEvent(curEvent.m_InteractiveEventId);
-    //    }));
-    //}
-
-    //void ShowUseItemButton()
-    //{
-    //    Jyx2_UIManager.Instance.ShowUI("InteractUIPanel", "使用物品", new Action(() =>
-    //    {
-    //        OnClickedUseItemButton();
-    //    }));
-    //}
+    public void OnExitAllEvents()
+    {
+        if (curEvent == null)
+            return;
+        
+        UnityTools.DisHighLightObjects(curEvent.m_EventTargets);
+        Jyx2_UIManager.Instance.HideUI("InteractUIPanel");
+        curEvent = null;
+    }
+    
 
     /// <summary>
     /// 显示交互面板
@@ -205,7 +166,7 @@ public class GameEventManager : MonoBehaviour
     bool TryTrigger(GameEvent evt)
     {
         //直接触发
-        if (!IsNoEvent(evt.m_EnterEventId))
+        if (!IsNoEvent(evt.m_EnterEventId) && !LuaExecutor.isExcutling())
         {
             ExecuteLuaEvent(evt.m_EnterEventId);
             return true;
@@ -234,42 +195,48 @@ public class GameEventManager : MonoBehaviour
             return;
         }
 
-        SetCurrentGameEvent(curEvent);
-        var eventLuaPath = "jygame/ka" + eventId;
-        Jyx2.LuaExecutor.Execute(eventLuaPath, OnFinishEvent, context);
-
         //停止导航
         var levelMaster = LevelMaster.Instance;
         if (levelMaster != null)
         {
-			// fix drag motion continuous move the player when scene is playing
-			// modified by eaphone at 2021/05/31
-			levelMaster.SetPlayerCanController(false);
+            // fix drag motion continuous move the player when scene is playing
+            // modified by eaphone at 2021/05/31
+            levelMaster.SetPlayerCanController(false);
             levelMaster.StopPlayerNavigation();
         }
+        
+        SetCurrentGameEvent(curEvent);
+        var eventLuaPath = "jygame/ka" + eventId;
+        Jyx2.LuaExecutor.Execute(eventLuaPath, OnFinishEvent, context);
     }
 
 
     void OnFinishEvent()
     {
-		if(curEvent!=null){
-			curEvent.MarkChest();
-		}else{
-			Debug.Log("curEvent is null");
-		}
+        if (curEvent != null)
+        {
+            curEvent.MarkChest();
+        }
+        else
+        {
+            Debug.Log("curEvent is null");
+        }
+
         SetCurrentGameEvent(null);
-		// fix drag motion continuous move the player when scene is playing
-		// modified by eaphone at 2021/05/31
+        // fix drag motion continuous move the player when scene is playing
+        // modified by eaphone at 2021/05/31
         var levelMaster = LevelMaster.Instance;
         if (levelMaster != null)
         {
-			levelMaster.SetPlayerCanController(true);
-		}
-		if(curEvent!=null){
-			UnityTools.DisHighLightObjects(curEvent.m_EventTargets);
-		}
+            levelMaster.SetPlayerCanController(true);
+        }
 
-        //TryTrigger();
+        if (curEvent != null)
+        {
+            UnityTools.DisHighLightObjects(curEvent.m_EventTargets);
+        }
+
+        curEvent = null;
     }
 
     static string _currentEvt;
@@ -286,15 +253,20 @@ public class GameEventManager : MonoBehaviour
     }
     static public GameEvent GetCurrentGameEvent()
     {
-        if (string.IsNullOrEmpty(_currentEvt))
+        return GetGameEventByID(_currentEvt);
+    }
+	
+	static public GameEvent GetGameEventByID(string id)
+	{
+        if (string.IsNullOrEmpty(id))
             return null;
 
         foreach (var evt in FindObjectsOfType<GameEvent>())
         {
-            if (evt.name == _currentEvt)
+            if (evt.name == id)
                 return evt;
         }
 
         return null;
-    }
+	}
 }

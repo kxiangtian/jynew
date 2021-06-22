@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,6 +17,9 @@ namespace Jyx2
 
         [XmlAttribute]
         public string Id; //ID
+		
+        [XmlAttribute]
+        public int Trigger;
 
         [XmlElement]
         public List<Jyx2ShopItem> ShopItems; //商店所有物品

@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -54,8 +54,6 @@ namespace Jyx2
             //主角入当前队伍
             runtime.Team.Add(runtime.GetRole(0));
 
-            MapRuntimeData.Instance.Clear();
-            MapRuntimeData.Instance.AddToExploreTeam(player);
 #if JYX2_TEST
             //可自由实现新的语法
             var content = File.ReadAllLines("CreateTeamDebug.txt");
@@ -399,18 +397,9 @@ namespace Jyx2
 
         public int GetMoney()
         {
-            return GetItemCount(Jyx2Consts.MONEY_ID);
+            return GetItemCount(GameConst.MONEY_ID);
         }
-
-        //探索地图运行时
-        public MapRuntimeData MapRuntimeData
-        {
-            get { return GetPojoAutoCreate<MapRuntimeData>("MapRuntimeData"); }
-            set { SavePojo("MapRuntimeData", value); }
-        }
-
-
-        #region JYX2
+        
 
 
         //JYX2物品，{ID，数量}
@@ -554,9 +543,6 @@ namespace Jyx2
             string key = "SceneEntraceCondition_" + scene;
             SetKeyValues(key, value.ToString());
         }
-
-        #endregion
-
 
         #endregion
     }

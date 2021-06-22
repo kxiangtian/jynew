@@ -12,14 +12,14 @@ namespace Jyx2.Editor
     public class GenDataMenuCmd
     {
         [MenuItem("配置表/[GEN DATA]")]
-        static void GenerateData()
+        public static void GenerateData()
         {
             using (HSUtils.ExeTimer("菜单：[GEN DATA]"))
                 MenuHelper.SafeWrapMenuAction("GENERATE DATA", title => GenerateDataWithEnding(title, false, false));
         }
 
         [MenuItem("配置表/[GEN DATA (强制更新)]")]
-        static void GenerateDataForce()
+        public static void GenerateDataForce()
         {
             using (HSUtils.ExeTimer("菜单：[GEN DATA (强制更新)]"))
                 MenuHelper.SafeWrapMenuAction("GENERATE DATA重新转换XLS", title => GenerateDataWithEnding(title, true, false));
@@ -99,7 +99,7 @@ namespace Jyx2.Editor
                     using (HSUtils.ExeTimer("AssetTool.BuildCurrent"))
                     {
                         MenuHelper.SafeDisplayProgressBar(title, "AssetTool.BuildCurrent", 0.9f);
-                        AssetTool.BuildCurrent();
+                        /*AssetTool.BuildCurrent();*/
                         Debug.LogWarning("▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ [ 成功完成BuildCurrent ] ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲".EatWithTID());
                     }
                 }

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -28,6 +28,12 @@ public class ColorStringDefine
 
 public class GameConst
 {
+    
+    public const float MapSpeed = 5;
+    public const float MapAngularSpeed = 360;
+    public const float MapAcceleration = 15;
+
+    
     public const bool SEMI_REAL = false;//游戏是否是半即时制
     public const int ACTION_SP = 1000;//半即时制的情况下 行动一次的花费
     public const int MAX_ROLE_LEVEL = 30;
@@ -43,6 +49,7 @@ public class GameConst
     public const int MAX_DEPOISON = 100;
     public const int MAX_ANTIPOISON = 100;
 
+    public const int GAME_START_MUSIC_ID = 16;
     /// <summary>
     /// 最大角色的武器熟练度
     /// </summary>
@@ -74,6 +81,36 @@ public class GameConst
     /// 角色的最大武功学习数量
     /// </summary>
     public const int MAX_ROLE_WUGONG_COUNT = 10;
+    
+    //银两ID
+    public const int MONEY_ID = 174; 
+
+    //JYX2最大体力上限
+    public const int MaxTili = 100;
+
+    //最大队伍人数
+    public const int MAX_TEAMCOUNT = 6;
+
+    //最大技能数量
+    public const int MAX_SKILL_COUNT = 10;
+
+    //最大资质
+    public const int MAX_ZIZHI = 100;
+
+    //最大属性
+    public const int MAX_ROLE_ATTRITE = 100;
+
+    //最大生命和内力
+    public const int MAX_HPMP = 999;
+        
+    //最大战斗上场人数
+    public const int MAX_BATTLE_TEAMMATE_COUNT = 6;
+	
+	//对话框最大可以显示字符
+	public const int MAX_CHAT_CHART_NUM=157;
+	
+	//战斗胜利结果最大显示行数
+	public const int MAX_BATTLE_RESULT_LINE_NUM=7;
 
     readonly static public int[] _levelUpExpList = new int[] { 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 2400, 1500, 3150, 3300, 3450, 3650, 3700, 3900, 4050, 4200, 4350, 4500, 4600, 4800, 5000, 5100, 5200, 5300, 5500, 5600, 5800, 6000, 6200, 6400, 6600, 6800, 7000, 7200, 7400, 7600, 7800, 8000, 8200, 8400, 8600, 8800, 9200, 9600, 10000, 20000, 30000 };
 
