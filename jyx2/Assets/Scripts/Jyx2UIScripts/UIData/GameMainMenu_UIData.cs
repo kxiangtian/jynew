@@ -1,3 +1,13 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,6 +17,7 @@ public partial class GameMainMenu
 	private RectTransform homeBtnAndTxtPanel_RectTransform;
 	private Button NewGameButton_Button;
 	private Button LoadGameButton_Button;
+	private Button SettingsButton_Button;
 	private Button QuitGameButton_Button;
 	private RectTransform SavePanel_RectTransform;
 	private RectTransform savePanelContainer_RectTransform;
@@ -21,6 +32,11 @@ public partial class GameMainMenu
 	private Button YesBtn_Button;
 	private RectTransform PropertyItem_RectTransform;
 	private RectTransform PropertyRoot_RectTransform;
+	private Text LoadingText;
+	private ReleaseNotePanel ReleaseNote_Panel;
+	private GameObject MainMenuTitles;
+
+	List<Button> bottomButtons = new List<Button>();
 
 	public void InitTrans()
 	{
@@ -28,6 +44,7 @@ public partial class GameMainMenu
 		homeBtnAndTxtPanel_RectTransform = transform.Find("mainPanel/homeBtnAndTxtPanel").GetComponent<RectTransform>();
 		NewGameButton_Button = transform.Find("mainPanel/homeBtnAndTxtPanel/NewGameButton").GetComponent<Button>();
 		LoadGameButton_Button = transform.Find("mainPanel/homeBtnAndTxtPanel/LoadGameButton").GetComponent<Button>();
+		SettingsButton_Button = transform.Find("mainPanel/homeBtnAndTxtPanel/GameSettingsButton").GetComponent<Button>();
 		QuitGameButton_Button = transform.Find("mainPanel/homeBtnAndTxtPanel/QuitGameButton").GetComponent<Button>();
 		SavePanel_RectTransform = transform.Find("SavePanel").GetComponent<RectTransform>();
 		savePanelContainer_RectTransform = transform.Find("SavePanel/savePanelContainer").GetComponent<RectTransform>();
@@ -42,6 +59,16 @@ public partial class GameMainMenu
 		YesBtn_Button = transform.Find("StartNewRolePanel/YesBtn").GetComponent<Button>();
 		PropertyItem_RectTransform = transform.Find("StartNewRolePanel/PropertyItem").GetComponent<RectTransform>();
 		PropertyRoot_RectTransform = transform.Find("StartNewRolePanel/PropertyRoot").GetComponent<RectTransform>();
-
+		LoadingText = transform.Find("mainPanel/LoadingText").GetComponent<Text>();
+		ReleaseNote_Panel = transform.Find("ReleaseNotePanel").GetComponent<ReleaseNotePanel>();
+		MainMenuTitles = transform.Find("BG").gameObject;
+		
+		
+		//bottom buttons
+		foreach (Transform child in transform.Find("mainPanel/ExtendPanel"))
+		{
+			var btn = child.GetComponent<Button>();
+			bottomButtons.Add(btn);
+		}
 	}
 }

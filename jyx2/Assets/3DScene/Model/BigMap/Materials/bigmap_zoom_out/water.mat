@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: water
-  m_Shader: {fileID: 4800000, guid: 4bcc0b68579a5c740ad31644411ffb54, type: 3}
+  m_Shader: {fileID: 4800000, guid: 644d4419f6d30214892dd65158332ba7, type: 3}
   m_ShaderKeywords: _UNLIT_ON _USEINTERSECTIONFOAM_ON
   m_LightmapFlags: 0
   m_EnableInstancingVariants: 0
@@ -109,10 +109,10 @@ Material:
     - _FlashSpeedX: 0.5
     - _FlashSpeedY: 0
     - _FoamDistortion: 0.45
-    - _FoamOpacity: 0.01
+    - _FoamOpacity: 0.005
     - _FoamSize: 0.313
     - _FoamSpeed: 0.1
-    - _FoamTiling: 2.8899994
+    - _FoamTiling: 1.9900001
     - _Fresnelexponent: 4
     - _Gloss: 0
     - _GlossMapScale: 1
@@ -138,7 +138,7 @@ Material:
     - _Metallic: 0
     - _Mode: 0
     - _NORMAL_MAP: 0
-    - _NormalStrength: 0.988
+    - _NormalStrength: 1
     - _NormalTiling: 3.599999
     - _OcclusionStrength: 1
     - _OutlineRandomFactor: 0.05
@@ -147,7 +147,7 @@ Material:
     - _RT_REFRACTION: 0
     - _ReflectionFresnel: 5
     - _ReflectionRefraction: 0.05
-    - _ReflectionStrength: 1
+    - _ReflectionStrength: 0
     - _RefractionAmount: 0.0641
     - _RimDistortion: 0.115
     - _RimIntensity: 0
@@ -190,7 +190,7 @@ Material:
     - _ShadowColor: {r: 0.3066038, g: 0.45068616, b: 1, a: 1}
     - _SpecColor: {r: 1, g: 1, b: 1, a: 0.5}
     - _TheFlashColor: {r: 0, g: 0, b: 0, a: 0}
-    - _WaterColor: {r: 0.18420428, g: 0.38671917, b: 0.3704245, a: 0}
-    - _WaterShallowColor: {r: 0.19257024, g: 0.24833885, b: 0.36785123, a: 0}
+    - _WaterColor: {r: 0.24296463, g: 0.4308482, b: 0.5660378, a: 0}
+    - _WaterShallowColor: {r: 0.19252521, g: 0.24829134, b: 0.36780372, a: 0}
     - _WaveDirection: {r: 1, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

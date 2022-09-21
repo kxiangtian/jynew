@@ -1,13 +1,24 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
-using HSFrameWork.ConfigTable;
 
+
+#if JYX2_USE_HSFRAMEWORK
 namespace Jyx2
 {
+    //[Obsolete]
     [XmlType("jyx2role")]
     public class Jyx2Role : BaseBean
     {
@@ -62,7 +73,7 @@ namespace Jyx2
         public int Armor; //防具
 
         [XmlAttribute]
-        public int MpType; //内力性质
+        public int MpType; //内力性质 ,0:阴 1:阳 2:调和
 
         [XmlAttribute]
         public int Mp;
@@ -138,36 +149,7 @@ namespace Jyx2
         public List<Jyx2RoleWugong> Wugongs; //武功
 
         [XmlElement("Items")]
-        public List<Jyx2RoleItem> Items; //武功
-
-		
-        //立绘
-        public string GetHeadAvata()
-        {
-            return ConfigTable.Get<Jyx2RoleHeadMapping>(Head).HeadAvata;
-        }
-
-        //模型配置
-        public string GetModelAsset()
-        {
-            return ConfigTable.Get<Jyx2RoleHeadMapping>(Head).ModelAsset;
-        }
-        
-        //模型
-        public string GetModel()
-        {
-            return ConfigTable.Get<Jyx2RoleHeadMapping>(Head).Model;
-        }
-
-        public string GetWeaponMount()
-        {
-            return ConfigTable.Get<Jyx2RoleHeadMapping>(Head).WeaponMount;
-        }
-
-        public string GetBattleAnimator()
-        {
-            return ConfigTable.Get<Jyx2RoleHeadMapping>(Head).BattleAnimator;
-        }
+        public List<Jyx2RoleItem> Items; //道具
 
         //待适配
         public string Tag = "";
@@ -221,9 +203,25 @@ namespace Jyx2
         [XmlAttribute]
         public int Count;
 
+        //是否获取过角色物品
+        public int IsAdd
+        {
+            get
+            {
+                if (!GameRuntimeData.Instance.IsAdd.ContainsKey(Id.ToString()))
+                    return -1;
+                return GameRuntimeData.Instance.IsAdd[Id.ToString()];
+            }
+            set
+            {
+                GameRuntimeData.Instance.IsAdd[Id.ToString()] = value;
+            }
+        }
+
         public Jyx2RoleItem Clone()
         {
             return new Jyx2RoleItem() { Id = this.Id, Count = this.Count };
         }
     }
 }
+#endif

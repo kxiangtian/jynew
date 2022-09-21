@@ -1,16 +1,15 @@
 using Cinemachine;
-using HSUI;
 using System;
 using UniRx;
 using UnityEngine;
 
-public class CameraHelper : BaseUI
+public class CameraHelper : MonoBehaviour
 {
     public static CameraHelper Instance
     {
         get
         {
-            if (_instance == null) _instance = FindObjectOfType<CameraHelper>();
+            if (_instance == null) _instance = GameObject.FindObjectOfType<CameraHelper>();
             return _instance;
         }
     }
@@ -22,9 +21,12 @@ public class CameraHelper : BaseUI
     public Transform m_BattleCam;
     private CinemachineVirtualCamera _battleVCam;
 
-    public float m_RrotateSpeed = 50f;//旋转速度
+    public float m_RrotateSpeed = 120f;//旋转速度
     public float smoothing = 3;//平滑系数
     private float zoomSpeed = 3f;//缩放速度
+
+    public float zoomMin = 3f;
+    public float zoomMax = 20f;
 
     private LevelMaster _levelMaster;
     //private BattleHelper _battleHelper;
@@ -57,7 +59,9 @@ public class CameraHelper : BaseUI
         }
         _freeLook = m_StateDrivenCam.transform.Find("CM FreeLook").GetComponent<CinemachineFreeLook>();
         _battleVCam = m_BattleCam.transform.Find("CM VCam").GetComponent<CinemachineVirtualCamera>();
-
+        _battleVCam.transform.position = new Vector3(_battleVCam.transform.position.x, GlobalAssetConfig.Instance.defaultVcamOffset.y,
+            _battleVCam.transform.position.z);
+        
         if(m_CameraFollow != null)
         {
             ChangeFollow(m_CameraFollow);
@@ -147,16 +151,13 @@ public class CameraHelper : BaseUI
 
                     
                     //平移
-                    var v = Input.GetAxis("Vertical");
-                    var h = Input.GetAxis("Horizontal");
-                    if(v!=0 || h != 0)
+
+                    var analogMove = GamepadHelper.GetRightAnalogMove();
+                    if(analogMove.Y!=0 || analogMove.X != 0)
                     {
                         isBattleFieldLockRole = false;
                         
-                        Vector3 movement = new Vector3(h * 30 * Time.deltaTime, 0f, v * 30 * Time.deltaTime);
-                        
-                        //BY CG:不知道哪里旋转了45度，总之这样就对了……
-                        //movement = Quaternion.Euler(0,45,0) * movement;
+                        Vector3 movement = new Vector3(analogMove.X * 30 * Time.deltaTime, 0f, analogMove.Y * 30 * Time.deltaTime);
 
                         m_BattleCam.Translate(movement);
                     }
@@ -167,8 +168,8 @@ public class CameraHelper : BaseUI
                     {
                         Vector3 tmpPos = _battleVCam.transform.position;
                         tmpPos += _battleVCam.transform.forward * scroll * zoomSpeed;
-                        tmpPos.y = Mathf.Clamp(tmpPos.y, 5, 10);//限制缩放范围
-                        if ((tmpPos.y <= 5 && scroll > 0) || (tmpPos.y >= 10 && scroll < 0))
+                        tmpPos.y = Mathf.Clamp(tmpPos.y, zoomMin, zoomMax);//限制缩放范围
+                        if ((tmpPos.y <= zoomMin && scroll > 0) || (tmpPos.y >= zoomMax && scroll < 0))
                             //到缩放极限后，防止镜头向其他方向移动
                             tmpPos = _battleVCam.transform.position;
                         _battleVCam.transform.position = tmpPos;

@@ -1,7 +1,20 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using HanSquirrel.ResourceManager;
+using Cysharp.Threading.Tasks;
+using i18n.TranslatorDef;
+using Jyx2;
+using Jyx2.MOD;
+using Jyx2.ResourceManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -9,44 +22,88 @@ using UnityEngine.UI;
 public class LoadingPanel : MonoBehaviour
 {
 
-    public static void Create(string level,Action callback)
+    /// <summary>
+    /// 载入场景
+    /// </summary>
+    /// <param name="scenePath">为null则返回主菜单</param>
+    /// <returns></returns>
+    public static async UniTask Create(string scenePath)
     {
-        var loadingPanel = Jyx2ResourceHelper.CreatePrefabInstance("Assets/Prefabs/LoadingPanelCanvas.prefab").GetComponent<LoadingPanel>();
-        loadingPanel.LoadLevel(level, callback);
+        var loadingPanel = Jyx2ResourceHelper.CreatePrefabInstance("LoadingPanelCanvas").GetComponent<LoadingPanel>();
         GameObject.DontDestroyOnLoad(loadingPanel);
+        await loadingPanel.LoadLevel(scenePath);
     }
 
     public Text m_LoadingText;
 
-    public void LoadLevel(string levelKey, Action callback)
+    private async UniTask LoadLevel(string scenePath)
     {
         Jyx2_UIManager.Instance.CloseAllUI();
-        this.gameObject.SetActive(true);
-        StartCoroutine(DoLoadLevel(levelKey, callback));
-    }
+        gameObject.SetActive(true);
+        await UniTask.DelayFrame(1);
+        await UniTask.WaitForEndOfFrame(); //否则BattleHelper还没有初始化
 
-    IEnumerator DoLoadLevel(string levelKey, Action callback)
-    {
-        yield return 0; //否则BattleHelper还没有初始化
-
-        string level = levelKey.Contains("&") ? levelKey.Split('&')[0] : levelKey;
-        string command = levelKey.Contains("&") ? levelKey.Split('&')[1] : "";
-        var async = SceneManager.LoadSceneAsync(level);
-        while (!async.isDone)
+        //返回主菜单
+        if (scenePath == null)
         {
-            m_LoadingText.text = "载入中... " + (int)(async.progress * 100) + "%";
-            yield return 0;
+            var handle = SceneManager.LoadSceneAsync(GameConst.DefaultMainMenuScene);
+            while (!handle.isDone)
+            {
+                //---------------------------------------------------------------------------
+                //m_LoadingText.text = "载入中... " + (int)(handle.progress * 100) + "%";
+                //---------------------------------------------------------------------------
+                //特定位置的翻译【载入中文本显示】
+                //---------------------------------------------------------------------------
+                m_LoadingText.text = "载入中…… ".GetContent(nameof(LoadingPanel)) + (int)(handle.progress * 100) + "%";
+                //---------------------------------------------------------------------------
+                //---------------------------------------------------------------------------
+                await UniTask.WaitForEndOfFrame();
+            }
         }
-        if (!string.IsNullOrEmpty(command))
+        //切换场景
+        else
         {
-            StoryEngine.Instance.ExecuteCommand(command, null);
+            m_LoadingText.text = "载入中... ";
+            await ResLoader.LoadScene(scenePath);
+
+
+            /*if (MODLoader.Remap.ContainsKey(scenePath))
+            {
+                var assetBundleItem = MODLoader.Remap[scenePath];
+                var handle = SceneManager.LoadSceneAsync(assetBundleItem.Name);
+                while (!handle.isDone)
+                {
+                    //---------------------------------------------------------------------------
+                    //m_LoadingText.text = "载入中... " + (int)(handle.progress * 100) + "%";
+                    //---------------------------------------------------------------------------
+                    //特定位置的翻译【载入中文本显示】
+                    //---------------------------------------------------------------------------
+                    m_LoadingText.text =
+                        "载入中…… ".GetContent(nameof(LoadingPanel)) + (int) (handle.progress * 100) + "%";
+                    //---------------------------------------------------------------------------
+                    //---------------------------------------------------------------------------
+                    await UniTask.WaitForEndOfFrame();
+                }
+            }
+            else
+            {
+                var async = Addressables.LoadSceneAsync(scenePath);
+                while (!async.IsDone)
+                {
+                    //---------------------------------------------------------------------------
+                    //m_LoadingText.text = "载入中... " + (int)(async.PercentComplete * 100) + "%";
+                    //---------------------------------------------------------------------------
+                    //特定位置的翻译【载入中文本显示】
+                    //---------------------------------------------------------------------------
+                    m_LoadingText.text = "载入中…… ".GetContent(nameof(LoadingPanel)) +
+                                         (int) (async.PercentComplete * 100) + "%";
+                    //---------------------------------------------------------------------------
+                    //---------------------------------------------------------------------------
+                    await UniTask.WaitForEndOfFrame();
+                }
+            }*/
         }
-        yield return 0;
 
-        //Jyx2_UIManager.Instance.ShowMainUI(levelKey);
-        if (callback != null)
-            callback();
-
-        GameObject.Destroy(this.gameObject);
+        Destroy(gameObject);
     }
 }

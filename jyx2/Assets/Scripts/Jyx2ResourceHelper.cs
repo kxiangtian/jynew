@@ -1,160 +1,134 @@
-using HanSquirrel.ResourceManager;
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
+
 using Jyx2;
-using System.Collections;
-using System.Collections.Generic;
+using Lean.Pool;
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
+using IFix.Core;
+using Jyx2.EventsGraph;
+using Jyx2.MOD;
+using Jyx2.Middleware;
+using Jyx2.ResourceManagement;
+using Jyx2Configs;
+using ProtoBuf;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.AddressableAssets;
-using System.Threading.Tasks;
-using HSFrameWork.Common;
-using UnityEngine.ResourceManagement.AsyncOperations;
-using Lean.Pool;
+using Object = UnityEngine.Object;
 
-static public class Jyx2ResourceHelper
+namespace Jyx2
 {
-    static Dictionary<string, GameObject> cachedPrefabs;
+    public static class ImageLoadHelper
+    {
+        public static void LoadAsyncForget(this Image image, UniTask<Sprite> task)
+        {   
+            LoadAsync(image,task).Forget();
+        }
+        
+        public static async UniTask LoadAsync(this Image image, UniTask<Sprite> task)
+        {
+            image.gameObject.SetActive(false);
+            image.sprite = await task;
+            image.gameObject.SetActive(true);
+        }
+    }
+}
 
-    async static public Task Init()
+public static class Jyx2ResourceHelper
+{
+    private static bool _isInited = false;
+    
+    public static async Task Init()
     {
         //已经初始化过了
-        if(cachedPrefabs != null)
+        if (_isInited)
         {
             return;
         }
 
-        var handler = Addressables.LoadAssetAsync<TextAsset>("Assets/BuildSource/PreCachedPrefabs.txt").Task;
-        await handler;
+        _isInited = true;
 
-        cachedPrefabs = new Dictionary<string, GameObject>();
-
-        foreach (var path in handler.Result.text.Split('\n'))
+        //模型池
+        var allModels = await ResLoader.LoadAssets<ModelAsset>("Assets/Models/");
+        if (allModels != null)
         {
-            if (string.IsNullOrEmpty(path)) continue;
-
-            var p = path.Replace("\r", "");
-            var h = Addressables.LoadAssetAsync<GameObject>(p).Task;
-            await h;
-            if(h.Result != null)
-            {
-                cachedPrefabs[p] = h.Result;
-                Debug.Log("cached prefab:" + p);
-            }
+            ModelAsset.All = allModels;
         }
+        
+        //技能池
+        var allSkills = await ResLoader.LoadAssets<Jyx2SkillDisplayAsset>("Assets/Skills/");
+        if (allSkills != null)
+        {
+            Jyx2SkillDisplayAsset.All = allSkills;
+        }
+
+        //基础配置表
+        var config = await ResLoader.LoadAsset<TextAsset>($"Assets/Configs/Datas.bytes");
+        GameConfigDatabase.Instance.Init(config.bytes);
+        
+        //初始化基础配置
+        GameSettings.Refresh();
+        
+        //lua
+        await LuaManager.InitLuaMapper();
+        
+        //执行lua根文件
+        LuaManager.Init(GlobalAssetConfig.Instance.rootLuaFile.text);
+        
+        //如果有热更新文件，执行热更新
+        LuaManager.PreloadLua();
+        
+        //IFix热更新文件
+        await IFixManager.LoadPatch();
     }
 
-    static public GameObject GetCachedPrefab(string path)
+    public static GameObject GetCachedPrefab(string path)
     {
-        if (cachedPrefabs.ContainsKey(path))
-            return cachedPrefabs[path];
-
-        Debug.LogError($"载入缓存的Prefab失败：{path}(是否没写入Assets/BuildSource/PreCachedPrefabs.txt?)");
-
+        if(GlobalAssetConfig.Instance.CachePrefabDict.TryGetValue(path, out var prefab))
+        {
+            return prefab;
+        }
+        
+        Debug.LogError($"载入缓存的Prefab失败：{path}(是否没填入GlobalAssetConfig.CachedPrefabs?)");
         return null;
     }
 
-    static public GameObject CreatePrefabInstance(string path)
+    public static GameObject CreatePrefabInstance(string path)
     {
         var obj = GetCachedPrefab(path);
-        return LeanPool.Spawn(obj);
+        return Object.Instantiate(obj);
     }
 
-    static public void ReleasePrefabInstance(GameObject obj)
+    public static void ReleasePrefabInstance(GameObject obj)
     {
-        LeanPool.Despawn(obj);
+        Object.Destroy(obj);
     }
 
-    static public void GetRoleHeadSprite(string path, Action<Sprite> callback)
-    {
-        string p = ("Assets/BuildSource/head/" + path + ".png");
-        Addressables.LoadAssetAsync<Sprite>(p).Completed += r => { callback(r.Result); };
-    }
-
-    static public void GetSceneCoordDataSet(string sceneName, Action<SceneCoordDataSet> callback)
+    [Obsolete("待修改为tilemap")]
+    public static async UniTask<SceneCoordDataSet> GetSceneCoordDataSet(string sceneName)
     {
         string path = $"{ConStr.BattleBlockDatasetPath}{sceneName}_coord_dataset.bytes";
-        Addressables.LoadAssetAsync<TextAsset>(path).Completed += r =>
-        {
-            if (r.Result == null)
-                callback(null);
-            var obj = r.Result.bytes.Deserialize<SceneCoordDataSet>();
-            callback(obj);
-        };
-    }
-    
-    static public void GetBattleboxDataset(string fullPath, Action<BattleboxDataset> callback)
-    {
-        Addressables.LoadAssetAsync<TextAsset>(fullPath).Completed += r =>
-        {
-            if (r.Result == null)
-                callback(null);
-            var obj = r.Result.bytes.Deserialize<BattleboxDataset>();
-            callback(obj);
-        };
-    }
-    
-
-    static public void GetSprite(RoleInstance role, Action<Sprite> callback)
-    {
-        if (role.Key == GameRuntimeData.Instance.Player.Key)
-        {
-            GetRoleHeadSprite(GameRuntimeData.Instance.Player.HeadAvata, callback);
-        }
-        else
-        {
-            GetRoleHeadSprite(role.HeadAvata, callback);
-        }
+        var result = await ResLoader.LoadAsset<TextAsset>(path);
+        using var memory = new MemoryStream(result.bytes);
+        return Serializer.Deserialize<SceneCoordDataSet>(memory);
     }
 
-    static public void GetRoleHeadSprite(string path, Image setImage)
+    public static async UniTask<Jyx2NodeGraph> LoadEventGraph(int id)
     {
-        GetRoleHeadSprite(path, r => setImage.sprite = r);
-    }
-    
-    static public void GetRoleHeadSprite(RoleInstance role, Image setImage)
-    {
-        GetSprite(role, r => setImage.sprite = r);
-    }
+        string url = $"Assets/BuildSource/EventsGraph/{id}.asset";
 
-    static public void GetItemSprite(int itemId, Image setImage)
-    {
-        string p = ("Assets/BuildSource/Jyx2Items/" + itemId + ".png");
-        Addressables.LoadAssetAsync<Sprite>(p).Completed += r => {
-            setImage.sprite = r.Result;
-        };
-    }
-
-    static public void GetSprite(string iconName, string atlasName, Action<Sprite> cb) 
-    {
-        string path = $"Assets/BuildSource/UI/{atlasName}/{iconName}.png";
-        Addressables.LoadAssetAsync<Sprite>(path).Completed += r =>
-        {
-            cb?.Invoke(r.Result);
-        };
-    }
-
-
-    static public void SpawnPrefab(string path, Action<GameObject> callback)
-    {
-        Addressables.InstantiateAsync(path).Completed += r => { callback(r.Result); };
-    }
-
-
-    static public void LoadPrefab(string path, Action<GameObject> callback)
-    {
-        Addressables.LoadAssetAsync<GameObject>(path).Completed += r => { callback(r.Result); };
-    }
-
-    static public void LoadAsset<T>(string path, Action<T> callback)
-    {
-        Addressables.LoadAssetAsync<T>(path).Completed += r => { callback(r.Result); };
-    }
-
-    static public void ReleaseInstance(GameObject obj)
-    {
-        if(obj != null)
-        {
-            Addressables.ReleaseInstance(obj);
-        }
+        return await ResLoader.LoadAsset<Jyx2NodeGraph>(url);
     }
 }

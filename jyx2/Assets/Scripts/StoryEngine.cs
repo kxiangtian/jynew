@@ -1,52 +1,45 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using HSFrameWork.ConfigTable;
+
 using Jyx2;
 using System;
-using UnityEngine.AI;
-using DG.Tweening;
-using HanSquirrel.ResourceManager;
+using System.Globalization;
+using Cysharp.Threading.Tasks;
+using Jyx2Configs;
 using UnityEngine.Playables;
-using HSFrameWork.Common;
-using Jyx2.Setup;
-using System.Linq;
-using UnityEngine.UI;
-using Jyx2;
 
+//待重构
 public class StoryEngine : MonoBehaviour
 {
     public static StoryEngine Instance;
 
 
-    public Transform popinfoContainer;
     public bl_HUDText HUDRoot;
-    public AudioSource m_AudioSource;
-    public AudioSource m_SoundAudioSource;
+    
 
-    [HideInInspector]
     public bool BlockPlayerControl
     {
-        get
-        {
-            return _blockPlayerControl;
-        }
-        set
-        {
-            _blockPlayerControl = value;
-        }
+        get { return _blockPlayerControl; }
+        set { _blockPlayerControl = value; }
     }
-
 
 
     private bool _blockPlayerControl;
 
-    GameRuntimeData runtime
+    private static GameRuntimeData runtime
     {
-        get
-        {
-            return GameRuntimeData.Instance;
-        }
+        get { return GameRuntimeData.Instance; }
     }
 
     private void Awake()
@@ -54,160 +47,61 @@ public class StoryEngine : MonoBehaviour
         Instance = this;
     }
 
-    private void Start()
+    public async void DisplayPopInfo(string msg, float duration = 2f)
     {
+        await Jyx2_UIManager.Instance.ShowUIAsync(nameof(CommonTipsUIPanel), TipsType.Common, msg, duration);
     }
 
-    //当前指令指定参数
-    List<GameObject> m_ParaGameObjects;
-
-    //执行指令
-    public void ExecuteCommand(string command, List<GameObject> paraGameObjects)
+    public static bool DoLoadGame(int index)
     {
-        if (string.IsNullOrEmpty(command))
-            return;
-
-        m_ParaGameObjects = paraGameObjects;
-
-        string cmd = command.Split('#')[0].ToLower();
-        string value = command.Substring(cmd.Length + 1); //command.Split('#')[1];
-        
-        if (cmd == "selfsay")
+        try
         {
-            GameRuntimeData.Instance.Player.View.Say(value);
-        }
-        else if (cmd == "loadlevel")
-        {
-            SceneManager.LoadScene(value);
-        }
-        else if (cmd == "loadmap")
-        {
-            var loadPara = new LevelMaster.LevelLoadPara() { loadType = LevelMaster.LevelLoadPara.LevelLoadType.Load };
-            LevelLoader.LoadGameMap(value, loadPara);
-        }
-        else if (cmd == "timeline")
-        {
-            PlayTimeline(value, null);
-        }
-        else if (cmd == "transport")
-        {
-            var levelMaster = FindObjectOfType<LevelMaster>();
-            levelMaster.Transport(value);
-        }
-        else if(cmd == "win")
-        {
-            //TODO
-        }
-        else if(cmd == "lose")
-        {
-            //TODO
-        }
-        else if(cmd == "testlua")
-        {
-            LuaExecutor.Execute(value);
-        }else if(cmd == "jyx2event")
-        {
-            LuaExecutor.Execute("jygame/ka" + value);
-        }else if(cmd == "battle")
-        {
-            LevelLoader.LoadBattle(int.Parse(value), null);
-        }
-    }
-
-    private void PlayableDiretor_stopped(PlayableDirector obj)
-    {
-        Debug.Log("on playable director stopped.");
-        obj.gameObject.SetActive(false);
-        obj.stopped -= PlayableDiretor_stopped;
-
-        BlockPlayerControl = false;
-        if (__timeLineCallback != null)
-        {
-            __timeLineCallback();
-            __timeLineCallback = null;
-        }
-    }
-    Action __timeLineCallback;
-
-    void PlayTimeline(string timeLineName, Action callback)
-    {
-
-        Debug.Log("timeline command called. value = " + timeLineName);
-        GameObject root = GameObject.Find("Level/Timeline");
-        if (root != null)
-        {
-            Debug.Log("do playing");
-            var timeLineObj = root.transform.Find(timeLineName).gameObject;
-            var playableDiretor = timeLineObj.GetComponent<PlayableDirector>();
-
-            playableDiretor.stopped += PlayableDiretor_stopped;
-
-            __timeLineCallback = callback;
-
-            //以UNBLOCK为开头的timeline不会阻塞角色行动
-            BlockPlayerControl = !timeLineName.StartsWith("[UNBLOCK]");
-            playableDiretor.Play();
-
-            timeLineObj.SetActive(true);
-        }
-        else
-        {
-            Debug.LogError("can not find timeline root object: Level/Timeline");
-        }
-    }
-    
-
-    GameObject GetGameObject(string path)
-    {
-        if (path.StartsWith("$"))
-        {
-            int index = int.Parse(path.Replace("$", ""));
-            if (m_ParaGameObjects == null || index >= m_ParaGameObjects.Count)
+            //加载存档
+            var r = GameRuntimeData.LoadArchive(index);
+            if (r == null)
             {
-                Debug.LogError("invalid para, 包含了$，但是没传GameObject参数");
-                return null;
+                return false;
+            }
+
+            //初始化角色
+            foreach (var role in r.AllRoles.Values)
+            {
+                role.BindKey();
+            }
+
+            var loadPara = new LevelMaster.LevelLoadPara() {loadType = LevelMaster.LevelLoadPara.LevelLoadType.Load};
+
+            //加载地图
+            int mapId = -1;
+            if (r.SubMapData == null)
+            {
+                mapId = GameConst.WORLD_MAP_ID;
+                loadPara.Pos = r.WorldData.WorldPosition;
+                loadPara.Rotate = r.WorldData.WorldRotation;
             }
             else
             {
-                return m_ParaGameObjects[index];
+                mapId = r.SubMapData.MapId;
+                loadPara.Pos = r.SubMapData.CurrentPos;
+                loadPara.Rotate = r.SubMapData.CurrentOri;
             }
+
+            var map = GameConfigDatabase.Instance.Get<Jyx2ConfigMap>(mapId);
+
+            if (map == null)
+            {
+                throw new Exception("存档中的地图找不到！");
+            }
+            LevelMaster.LastGameMap = null;
+            LevelLoader.LoadGameMap(map, loadPara,
+                () => { LevelMaster.Instance.TryBindPlayer().Forget(); });
+            return true;
         }
-        else
+        catch (Exception e)
         {
-            return GameObject.Find(path);
+            MessageBox.Create("错误，载入存档失败。请检查版本号和MOD是否匹配。");
+            Debug.LogError("存档异常" + e.Message);
+            return true;
         }
     }
-    
-    const float POPINFO_FADEOUT_TIME = 1f;
-    public void DisplayPopInfo(string msg, float duration=2f)
-    {
-        Jyx2_UIManager.Instance.ShowUI("CommonTipsUIPanel",TipsType.Common, msg, duration);
-    }
-    
-    public static bool DoLoadGame(int index)
-    {
-        //加载存档
-        var r = GameRuntimeData.LoadArchive(index);
-        if (r==null)
-        {
-            return false;
-        }
-
-        //初始化角色
-        foreach (var role in r.Team)
-        {
-            role.BindKey();
-        }
-
-        var loadPara = new LevelMaster.LevelLoadPara() { loadType = LevelMaster.LevelLoadPara.LevelLoadType.Load };
-
-        //加载地图
-		// fix load game from Main menu will not transport player to last time indoor position 
-		// modified by eaphone at 2021/06/01
-        LevelLoader.LoadGameMap(ConfigTable.Get<GameMap>(r.CurrentMap), loadPara, "", ()=>{
-			LevelMaster.Instance.TryBindPlayer();
-		});
-        return true;
-    }
-
 }

@@ -1,50 +1,62 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections.Generic;
-using HanSquirrel.ResourceManager;
+using Cysharp.Threading.Tasks;
+
 using Jyx2;
 using Jyx2.Middleware;
+using Jyx2.MOD;
+using Jyx2.ResourceManagement;
+using Jyx2Configs;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Sirenix.OdinInspector;
 
 public class LevelMasterBooster : MonoBehaviour
 {
-    [ProgressBar(1, 50)]
-    [LabelText("测试等级")]
-    public int m_TestLevel = 1;
+    [LabelText("模拟移动端")] public bool m_MobileSimulate;
 
-    [LabelText("测试队友（角色Key）")]
-    public string[] m_TestTeammate;
+    [LabelText("战斗地图")] public bool m_IsBattleMap = false;
 
-    [LabelText("模拟数据")]
-    public bool m_RuntimeDataSimulate = true;
+    private GameRuntimeData runtime => GameRuntimeData.Instance;
 
-    [LabelText("模拟移动端")]
-    public bool m_MobileSimulate = false;
-
-
-    GameRuntimeData runtime { get { return GameRuntimeData.Instance; } }
-
-    async private void Awake()
+    private async void Awake()
     {
-        await BeforeSceneLoad.loadFinishTask;
+        await RuntimeEnvSetup.Setup();
 
         //实例化LevelMaster
         LevelMaster levelMaster = Jyx2ResourceHelper.CreatePrefabInstance(ConStr.LevelMaster).GetComponent<LevelMaster>();
         DontDestroyOnLoad(levelMaster);
         levelMaster.name = "LevelMaster";
         levelMaster.transform.SetParent(transform, false);
-        levelMaster.RuntimeDataSimulate = m_RuntimeDataSimulate;
         levelMaster.MobileSimulate = m_MobileSimulate;
+
+        if (LevelMaster.GetCurrentGameMap() == null)
+        {
+            var gameMap = Jyx2ConfigMap.GetMapBySceneName(SceneManager.GetActiveScene().name);
+            LevelMaster.SetCurrentMap(gameMap);
+        }
     }
 
-    async private void Start()
+    private async void Start()
     {
-        await BeforeSceneLoad.loadFinishTask;
+        await RuntimeEnvSetup.Setup();
+
         if (GameRuntimeData.Instance == null)
         {
             GameRuntimeData.CreateNew();
         }
+
+        if (m_IsBattleMap)
+            return;
 
         //设置所有的宝箱
         foreach(var chest in GameObject.FindObjectsOfType<MapChest>())
@@ -52,61 +64,45 @@ public class LevelMasterBooster : MonoBehaviour
             chest.Init();
         }
 
-
         //设置所有的场景变更
-        RefreshSceneObjects();
+        await RefreshSceneObjects();
 
 
-        //if (m_RuntimeDataSimulate && GameRuntimeData.Instance == null)
-        //{
-        //    var runtime = GameRuntimeData.CreateNew();
-        //    var playerRoleView = RoleHelper.FindPlayer();
-        //    playerRoleView.BindRoleInstance(runtime.Player);
-
-        //    //测试队友
-        //    //foreach (var teammate in m_TestTeammate)
-        //    //{
-        //    //    var role = RoleHelper.CreateRoleInstance(teammate);
-        //    //    runtime.Team.Add(role);
-        //    //    MapRuntimeData.Instance.AddToExploreTeam(role);
-        //    //}
-
-        //    //随机增加物品
-        //    //for(int i = 0; i < 5; ++i)
-        //    //{
-        //    //    runtime.AddItem(UnityEngine.Random.Range(0, 197), UnityEngine.Random.Range(1, 10));
-        //    //}
-
-        //    //测试物品
-        //    //List<string> itemList = new List<string>() {
-        //    //    "皮甲", "皮手套", "生锈的宝剑", "凤凰琴", "桃花华裳", "杨家宝刀",
-        //    //    "杨家宝甲", "林冲虎啸枪", "摇光", "摇光剑", "摇光枪", "摇光拳套",
-        //    //    "寒铁宝甲", "老成皮甲", "名剑白虹", "昆吾神剑", "青莲古衣", "道济古帽",
-        //    //    "道济葫芦", "朔雪头冠", "朔雪飞靴", "大内金靴", "大内头冠", "星移长衣",
-        //    //    "星移斗笠", "香神链", "蔓陀长靴", "蔓陀束带", "飞流饰带", "四象饰带",
-        //    //    "吟龙带", "吟龙履", "南山守则", "阴阳幡", "天道束腰", "任侠环"
-        //    //};
-
-        //    //foreach (var item in itemList)
-        //    //{
-        //    //    runtime.AddItem(ItemInstance.Generate(item, true));
-        //    //}
-
-        //    //探索技能值
-        //    //GameConst.MapSkillPoint = 100;
-        //}
-        //场景准备完成 显示主界面
-        Jyx2_UIManager.Instance.ShowMainUI();
+        //所有改变的物体
+        foreach (var obj in FindObjectsOfType<FixWithGameRuntime>())
+        {
+            obj.Reload();
+        }
+        
+        await Jyx2_UIManager.Instance.ShowMainUI();
     }
 
     public void ReplaceSceneObject(string scene, string path, string replace)
+    {
+        SetSceneInfo(path, replace, scene);
+    }
+
+    private const string CONTROLLER_SCENE_INFO_PRFIX = "controller:";
+    public void ReplaceNpcAnimatorController(string scene,string npc, string controllerPath)
+    {
+        SetSceneInfo(npc, CONTROLLER_SCENE_INFO_PRFIX + controllerPath, scene);
+    }
+
+
+    /// <summary>
+    /// 设置场景数据
+    /// </summary>
+    /// <param name="key"></param>
+    /// <param name="value"></param>
+    /// <param name="scene">如果为空，则是当前场景</param>
+    void SetSceneInfo(string key, string value, string scene = "")
     {
         string sceneName = "";
         //当前场景
         if (string.IsNullOrEmpty(scene))
         {
             //sceneName = SceneManager.GetActiveScene().name;
-            sceneName = LevelMaster.Instance.GetCurrentGameMap().Jyx2MapId.ToString();
+            sceneName = LevelMaster.GetCurrentGameMap().Id.ToString();
         }
         else
         {
@@ -116,7 +112,7 @@ public class LevelMasterBooster : MonoBehaviour
         var dict = runtime.GetSceneInfo(sceneName);
         if (dict == null)
             dict = new Dictionary<string, string>();
-        dict[path] = replace;
+        dict[key] = value;
         runtime.SetSceneInfo(sceneName, dict);
 
         //如果是当前场景
@@ -132,18 +128,18 @@ public class LevelMasterBooster : MonoBehaviour
         return battleLoader != null;
     }
 
-    public void RefreshSceneObjects()
+    public async UniTask RefreshSceneObjects()
     {
         if (IsBattle())
             return;
 
         if (LevelMaster.Instance == null) return;
 
-        var currentGameMap = LevelMaster.Instance.GetCurrentGameMap();
+        var currentGameMap = LevelMaster.GetCurrentGameMap();
         if (currentGameMap == null)
             return;
 
-        string sceneName = currentGameMap.Jyx2MapId.ToString();
+        string sceneName = currentGameMap.Id.ToString();
         var dict = runtime.GetSceneInfo(sceneName);
         if (dict == null)
             return;
@@ -158,6 +154,8 @@ public class LevelMasterBooster : MonoBehaviour
                 continue;
             }
 
+            
+            //设置是否可见
             if (string.IsNullOrEmpty(kv.Value) || kv.Value.Equals("0"))
             {
                 obj.SetActive(false);
@@ -165,6 +163,30 @@ public class LevelMasterBooster : MonoBehaviour
             else if (kv.Value.Equals("1"))
             {
                 obj.SetActive(true);
+            }
+            else if (kv.Value.StartsWith(CONTROLLER_SCENE_INFO_PRFIX)) //设置animatorController
+            {
+                // 如果有animatorController则必须可见
+                obj.SetActive(true);
+
+                string animationControllerPath = kv.Value.Replace(CONTROLLER_SCENE_INFO_PRFIX, "");
+                
+                var animator = obj.GetComponent<Animator>();
+                if (animator == null)
+                {
+                    Debug.LogError($"错误：{obj.name}没有Animator组件。");
+                    return;
+                }
+
+                try
+                {
+                    animator.runtimeAnimatorController =
+                        await ResLoader.LoadAsset<RuntimeAnimatorController>(animationControllerPath);
+                }
+                catch
+                {
+                    // ignored
+                }
             }
         }
     }

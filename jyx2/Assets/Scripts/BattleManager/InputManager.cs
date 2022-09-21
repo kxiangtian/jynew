@@ -1,3 +1,12 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using Jyx2;
 using System.Collections;
 using System.Collections.Generic;
@@ -52,7 +61,7 @@ public class InputManager
 
     public BattleBlockData GetMouseUpBattleBlock()
     {
-        if (Input.GetMouseButtonUp(0) && !IsPointerOverUIObjectExceptTouchpad())
+        if (Input.GetMouseButtonUp(0) && !IsPointerOverUIObjectExceptTouchpad() && !EventSystem.current.IsPointerOverGameObject())
         {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
 
@@ -61,12 +70,29 @@ public class InputManager
             if (Physics.Raycast(ray, out RaycastHit hitInfo, 100, 1 << LayerMask.NameToLayer("Ground")))
             {
                 var block = BattleboxHelper.Instance.GetLocationBattleBlock(hitInfo.point);
-                if (block != null && block.IsActive)
+                if (block != null && block.IsActive && !block.Inaccessible)
                 {
                     return block;
                 }
             }
         }
+        return null;
+    }
+
+    public BattleBlockData GetMouseOverBattleBlock()
+    {
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        
+        //待调整为格子才可以移动
+        if (Physics.Raycast(ray, out RaycastHit hitInfo, 100, 1 << LayerMask.NameToLayer("Ground")))
+        {
+            var block = BattleboxHelper.Instance.GetLocationBattleBlock(hitInfo.point);
+            if (block != null && block.IsActive && !block.Inaccessible)
+            {
+                return block;
+            }
+        }
+
         return null;
     }
 
@@ -80,7 +106,7 @@ public class InputManager
             if (Physics.Raycast(ray, out RaycastHit hitInfo, 100, 1 << LayerMask.NameToLayer("Ground")))
             {
                 var block = BattleboxHelper.Instance.GetLocationBattleBlock(hitInfo.point);
-                if (block != null && block.IsActive)
+                if (block != null && block.IsActive && !block.Inaccessible)
                 {
                     return block;
                 }

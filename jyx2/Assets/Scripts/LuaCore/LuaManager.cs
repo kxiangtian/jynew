@@ -1,35 +1,41 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections.Generic;
-using System.IO;
-using GLib;
-using HanSquirrel;
-using HanSquirrel.ResourceManager;
-using HSFrameWork.Common;
-using HSFrameWork.ConfigTable;
+using System.Linq;
+using System.Text;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using XLua;
+using Jyx2.ResourceManagement;
 
 namespace Jyx2
 {
     public class LuaManager
     {
-        public const string LUA_ROOT_MENU = "";
         public const bool LUAJIT_ENABLE = false;
 
 
         public LuaManager() { }
 
-        static public bool IsInited()
+        private static bool IsInited()
         {
             return _inited;
         }
 
-        static public object GetLuaEnv()
+        public static LuaEnv GetLuaEnv()
         {
-            return luaEnv as object;
+            return luaEnv;
         }
 
-        static public void Clear()
+        private static void Clear()
         {
 
             _inited = false;
@@ -50,56 +56,78 @@ namespace Jyx2
                 luaEnv.FullGc();
                 //HSUtils.Log ("★★★Destroying lua state..");
                 luaEnv = null;
-                HSLogManager.GetLogger("Booter").Debug("★★★★ Destroying lua state finished★★★★ ");
             }
 
             ClearLuaMapper();
         }
 
-        static public void Init(bool forceReset = false)
+        public static void Init(string rootLuaFileText)
         {
-            if (forceReset)
-            {
-                Clear();
-            }
             if (_inited) return;
 
-            using (ExeTimer.GetEndIndent("LuaManagerImpl.Init", x => _PerfLogger.Info(x)))
+            
+            luaEnv = new LuaEnv();
+
+            //jit interpreter
+            if (LuaManager.LUAJIT_ENABLE)
             {
-                luaEnv = new LuaEnv();
+                luaEnv.DoString("\nif jit then\n\n  jit.off();jit.flush()\n\nend");
+            }
 
-                //jit interpreter
-                if (LuaManager.LUAJIT_ENABLE)
+
+            if (!string.IsNullOrEmpty(rootLuaFileText))
+            {
+                luaEnv.DoString(rootLuaFileText);    
+            }
+            
+            //load lua base files
+            /*foreach (var f in files)
+            {
+                luaEnv.DoString(LoadLua(LuaManager.LUA_ROOT_MENU + f.Replace(".lua", "")), f);
+            }*/
+
+            _inited = true;
+            //LoadLuaFiles();
+        }
+
+        public static void PreloadLua()
+        {
+            if (RuntimeEnvSetup.CurrentModConfig == null)
+            {
+                Debug.LogError("错误：没初始化运行环境就调用了preloadlua");
+                return;
+            }
+
+            if (RuntimeEnvSetup.CurrentModConfig.PreloadedLua != null)
+            {
+                UniTask.Void(async () =>
                 {
-                    luaEnv.DoString("\nif jit then\n\n  jit.off();jit.flush()\n\nend");
-                }
-
-                //load lua base files
-                foreach (var f in files)
-                {
-                    luaEnv.DoString(LoadLua(LuaManager.LUA_ROOT_MENU + f.Replace(".lua", "")), f);
-                }
-
-                _inited = true;
-                LoadLuaFiles();
-
-                //ConfigManager.Init();
-
-                HSLogManager.GetLogger("Booter").Info("lua vm 装载成功");
+                    foreach (var lua in RuntimeEnvSetup.CurrentModConfig.PreloadedLua)
+                    {
+                        Debug.Log($"preloading {lua}...");
+                        if (__luaMapper.ContainsKey(lua))
+                        {
+                            await LuaExecutor.Execute(lua);
+                        }
+                        
+                        Debug.Log($"load {lua} finished.");
+                    }
+                    
+                    Debug.Log("PreloadLua finished");
+                });
             }
         }
 
-        static public object[] Call(string functionName, params object[] paras)
+        private static object[] Call(string functionName, params object[] paras)
         {
             if (!_inited)
             {
-                Init();
+                Init(null);
             }
 
             var func = getCachedFunction(functionName);
             if (func == null)
             {
-                _Logger.Error("调用了未定义的lua 函数 [{0}]", functionName);
                 return null;
             }
             else
@@ -109,17 +137,16 @@ namespace Jyx2
             }
         }
 
-        static public T Call<T>(string functionName, params object[] paras)
+        private static T Call<T>(string functionName, params object[] paras)
         {
             if (!_inited)
             {
-                Init();
+                Init(null);
             }
 
             var func = getCachedFunction(functionName);
             if (func == null)
             {
-                _Logger.Error("调用了未定义的lua 函数 [{0}]", functionName);
                 return default(T);
             }
             else
@@ -131,46 +158,38 @@ namespace Jyx2
             }
         }
 
-        static public object CallWithSingleReturn(string functionName, params object[] paras)
+        public static object CallWithSingleReturn(string functionName, params object[] paras)
         {
             return Call(functionName, paras)[0];
         }
 
-        static public int CallWithIntReturn(string functionName, params object[] paras)
+        public static int CallWithIntReturn(string functionName, params object[] paras)
         {
             return Convert.ToInt32(Call(functionName, paras)[0]);
         }
 
-        static public double CallWithDoubleReturn(string functionName, params object[] paras)
+        public static double CallWithDoubleReturn(string functionName, params object[] paras)
         {
             return Convert.ToDouble(Call(functionName, paras)[0]);
         }
 
-        static public void GC()
+        public static void GC()
         {
             if (luaEnv != null)
             {
                 var before = Call<double>("get_lua_memory_cost");
                 luaEnv.GC();
                 var after = Call<double>("get_lua_memory_cost");
-                _PerfLogger.Info("Lua GC {0}-{1}={2}", ((int)before).ToMBKBB(), ((int)after).ToMBKBB(), ((int)(before - after)).ToMBKBB());
             }
         }
 
-        static public byte[] LoadLua(string path)
+        public static byte[] LoadLua(string path)
         {
             //BY CG：在unity编辑模式下，方便调试，不用repack lua
-            if (Application.isEditor)
+/*            if (Application.isEditor)
             {
-                return File.ReadAllBytes("data/lua/" + path + ".lua");
-            }
-
-
-            if (__luaMapper == null)
-            {
-                using (var input = BinaryResourceLoader.CreateStreamFromCEBinary(HSUnityEnv.CELuaPath))
-                    __luaMapper = DirectProtoBufTools.Deserialize<Dictionary<string, byte[]>>(input);
-            }
+                return File.ReadAllBytes("Assets/BuildSource/Lua/" + path + ".lua");
+            }*/
 
             //处理文件名格式
             if (!path.Contains("/"))
@@ -178,73 +197,56 @@ namespace Jyx2
                 path = path.Replace(".", "/");
             }
 
-            if (LuaManager.LUAJIT_ENABLE)
-            {
-                path = "/luajit/" + path;
-            }
-            else
-            {
-                path = "/lua/" + path;
-            }
-
-            if (!path.EndsWith(".lua"))
-            {
-                path += ".lua";
-            }
-
+            path = path.Split('/').Last();
+            
             if (__luaMapper.ContainsKey(path))
             {
+                string code = Encoding.UTF8.GetString(__luaMapper[path]);
+                
+                Debug.Log(code);
+                
                 return __luaMapper[path];
             }
             else
             {
-                _Logger.Error("找不到文件 [{0}]", path);
+                Debug.LogError($"找不到文件 [{path}]");
                 return null;
             }
         }
 
 
         #region private
-        static private void ClearLuaMapper()
+        private static void ClearLuaMapper()
         {
             __luaMapper = null;
         }
-        static private readonly string[] files = new string[]{
-            "main.lua",
-        };
 
-        /// <summary> 保证LUA资源及时释放，主动胜过被动，被动胜过不做。@George </summary>
-        private static readonly PassiveResourceDisposer _passiveResourceDisposer = PassiveResourceDisposer.Create(delegate
+        public static async UniTask InitLuaMapper()
         {
-            if (LuaManager.IsInited() && HSUnityEnv.NeedElegantDispose)
-            {   //因为是在析构函数里面调用的缘故，好像有了这个代码后Untiy有时候在重新编译的时候会死机。
-                //这个仅仅是在游戏没有运行的时候，LUA被无意初始化后才会发生，因此智能释放的概率本身很低，故此暂时先这么写代码。
-                LuaManager.Clear();
-                HSLogManager.GetLogger("Booter").Debug("★★★★ 智能释放Lua资源成功 ★★★★");
-            }
-        });
+            /*            if (Application.isEditor) //编辑器模式下不需要缓存，直接读取文件
+                            return;*/
+            //var overridePaths = await MODLoader.LoadOverrideList($"{rootPath}/Lua");
+            
+            //var assets = await MODLoader.LoadAssets<TextAsset>(overridePaths);
 
-        static private IHSLogger _Logger = HSLogManager.GetLogger("Lua");
-        static private IHSLogger _PerfLogger = HSLogManager.GetLogger("Perf");
 
-        static private bool _inited = false;
-        static private LuaEnv luaEnv;
-        static private void LoadLuaFiles()
-        {
-            LuaTable files = Call<LuaTable>("main_getLuaFiles");
-            foreach (var luaFile in files.Cast<List<string>>())
+            var assets = await ResLoader.LoadAssets<TextAsset>("Assets/Lua/");
+
+            __luaMapper = new Dictionary<string, byte[]>();
+            foreach (var a in assets)
             {
-                //HSUtils.Log(luaFile);
-                luaEnv.DoString(LoadLua(LuaManager.LUA_ROOT_MENU + luaFile.Replace(".lua", "")), luaFile);
+                __luaMapper[a.name] = Encoding.UTF8.GetBytes(a.text);
             }
-            files.Dispose();
-            files = null;
         }
 
-        static private Dictionary<string, byte[]> __luaMapper = null;
+        
+        private static bool _inited = false;
+        private static LuaEnv luaEnv;
 
-        static private Dictionary<string, LuaFunction> _cachedFunc = new Dictionary<string, LuaFunction>();
-        static private LuaFunction getCachedFunction(string name)
+        private static Dictionary<string, byte[]> __luaMapper = null;
+
+        private static Dictionary<string, LuaFunction> _cachedFunc = new Dictionary<string, LuaFunction>();
+        private static LuaFunction getCachedFunction(string name)
         {
             if (_cachedFunc.ContainsKey(name))
             {

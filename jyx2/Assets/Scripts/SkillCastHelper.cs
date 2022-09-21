@@ -1,18 +1,27 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using Animancer;
+using Cysharp.Threading.Tasks;
 using DG.Tweening;
-using HanSquirrel.ResourceManager;
+
 using Jyx2.Middleware;
-using HSFrameWork.Common;
+
+using SkillEffect;
 using UniRx;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.Playables;
-using UnityEngine.Timeline;
+
 
 namespace Jyx2
 {
@@ -47,12 +56,12 @@ namespace Jyx2
         public Jyx2AnimationBattleRole Source;
         public IEnumerable<Jyx2AnimationBattleRole> Targets;
         public IEnumerable<Transform> CoverBlocks;
-        public BattleZhaoshiInstance Zhaoshi;
+        public SkillCastInstance Skill;
 
 
-        Jyx2SkillDisplay GetDisplay()
+        Jyx2SkillDisplayAsset GetDisplay()
         {
-            return Zhaoshi.Data.GetDisplay();
+            return Skill.Data.GetDisplay();
         }
 
 
@@ -60,49 +69,65 @@ namespace Jyx2
         /// 播放
         /// </summary>
         /// <param name="forceChangeWeapon">是否强行更换武器，一般仅用于技能编辑时看效果</param>
-        public void Play(Action callback = null)
+        public async UniTask Play()
         {
             var display = GetDisplay();
             if(display == null)
             {
-                Debug.LogError($"招式{Zhaoshi.Key}没有配置Display!");
-                if (callback != null) callback();
+                Debug.LogError($"招式{Skill.Key}没有配置Display!");
                 return;
             }
 
             if (Source != null)
             {
                 Source.CurDisplay = display;
-                GameUtil.CallWithDelay(display.AnimaionDelay, Source.Attack);
+                GameUtil.CallWithDelay(display.animationDelay, Source.Attack);
             }
 
 
             //普通特效
-            if (!string.IsNullOrEmpty(display.CastEft))
+            if (display.partilePrefab != null)
             {
-                GameUtil.CallWithDelay(display.CastDelay, DisplayCastEft);
+                GameUtil.CallWithDelay(display.particleDelay, DisplayCastEft);
             }
 
             //格子特效
-            if(!string.IsNullOrEmpty(display.BlockEft))
+            if(display.blockPartilePrefab != null)
             {
-                GameUtil.CallWithDelay(display.BlockDelay, DisplayBlockEft);
+                DisplayBlockEft();
             }
 
             //音效
-            if(!string.IsNullOrEmpty(display.AudioEft))
+            if(display.audio != null)
             {
-                GameUtil.CallWithDelay(display.AudioEftDelay,ExecuteSoundEffect);
+                GameUtil.CallWithDelay(display.audioDelay, () => ExecuteSoundEffect(display.audio));
+            }
+
+            //音效2
+            if (display.audio2 != null)
+            {
+                GameUtil.CallWithDelay(display.audioDelay2, () => ExecuteSoundEffect(display.audio2));
             }
             
             //播放受击动画和飘字
-            GameUtil.CallWithDelay(display.HitDelay, ExecuteBeHit);
+            GameUtil.CallWithDelay(display.behitDelay, ExecuteBeHit);
 
-            //回调
-            if(callback != null)
+            //残影
+            if (display.isGhostShadowOn)
             {
-                GameUtil.CallWithDelay(display.Duration, callback);
+                var ghostShadow = GameUtil.GetOrAddComponent<GhostShadow>(Source.transform);
+                ghostShadow.m_fDuration = 15;
+                ghostShadow.m_fInterval = 0.3f;
+                ghostShadow.m_fIntension = 0.4f;
+                ghostShadow.m_Color = display.ghostShadowColor;
+                ghostShadow.m_bOpenGhost = true;
+                GameUtil.CallWithDelay(display.duration, () =>
+                {
+                    ghostShadow.m_bOpenGhost = false;
+                });
             }
+
+            await UniTask.Delay(TimeSpan.FromSeconds(display.duration));
         }
 
 
@@ -113,13 +138,35 @@ namespace Jyx2
         /// <param name="time"></param>
         /// <param name="parent"></param>
         /// <param name="callback"></param>
-        private void CastEffectAndWaitSkill(GameObject pre, float time, Transform parent, Vector3 offset, Action callback = null)
+        private void CastEffectAndWaitSkill(GameObject pre, float time, Transform parent, Vector3 offset, float scale, Action callback = null)
         {
             if (pre == null) return;
+            if (time == 0) time = 2f; //jyx2 修复有的特效无法获取时长的问题
 
             GameObject obj = GameObject.Instantiate(pre);
             obj.transform.rotation = parent.rotation;
             obj.transform.position = parent.position + offset;
+
+            var rotator = obj.GetComponent<RotateBlockParticles>();
+            if(rotator != null)
+            {
+                rotator.AdjustRotation(Source.transform, parent);
+            }
+
+            if (Math.Abs(scale - 1) > 0.001)
+            {
+                var scaleComponent = obj.AddComponent<ScaleParticles>();
+                scaleComponent.ScaleSize = scale;
+            }
+            
+            //修复：将所有的技能特效LOOPING去掉
+            foreach (var p in obj.GetComponentsInChildren<ParticleSystem>())
+            {
+                if (!p.main.loop) continue;
+                var m = p.main;
+                m.loop = true;
+            }
+            
             Observable.Timer(TimeSpan.FromSeconds(time))
             .Subscribe(ms =>
             {
@@ -131,42 +178,50 @@ namespace Jyx2
         private void DisplayCastEft()
         {
             var display = GetDisplay();
-
-            //播放特效
-            Jyx2ResourceHelper.LoadPrefab(display.CastEft, prefab=> {
-
-                var duration = HSUnityTools.ParticleSystemLength(prefab.transform);
-
-                Vector3 offset = Vector3.zero;
-                if (!string.IsNullOrEmpty(display.CastOffset))
-                {
-                    offset = UnityTools.StringToVector3(display.CastOffset, ',');
-                }
-                CastEffectAndWaitSkill(prefab, duration, Source.gameObject.transform, offset); //默认预留三秒
-            });
+            var prefab = display.partilePrefab;
+            var duration = HSUnityTools.ParticleSystemLength(prefab.transform);
+            var scale = display.particleScale;
+            Vector3 offset = display.partileOffset;
+            CastEffectAndWaitSkill(prefab, duration, Source.gameObject.transform, offset, scale); //默认预留三秒
         }
 
 
         private void DisplayBlockEft()
         {
             var display = GetDisplay();
+            var prefab = display.blockPartilePrefab;
 
-            Jyx2ResourceHelper.LoadPrefab(display.BlockEft,prefab=> {
+            var blockEftDuration = HSUnityTools.ParticleSystemLength(prefab.transform);
 
-                var blockEftDuration = HSUnityTools.ParticleSystemLength(prefab.transform);
-
-                Vector3 offset = Vector3.zero;
-                if (!string.IsNullOrEmpty(display.BlockOffset))
+            //播放特效
+            foreach (var block in CoverBlocks)
+            {
+                GameUtil.CallWithDelay(display.blockParticleDelay, () =>
                 {
-                    offset = UnityTools.StringToVector3(display.BlockOffset, ',');
-                }
-
-                //播放特效
-                foreach (var block in CoverBlocks)
+                    CastEffectAndWaitSkill(
+                        prefab,
+                        blockEftDuration,
+                        block,
+                        display.blockPartileOffset,
+                        display.blockParticleScale);
+                });
+                
+                
+                //补充特效
+                if (display.blockPartilePrefabAdd != null)
                 {
-                    CastEffectAndWaitSkill(prefab, blockEftDuration, block, offset);
+                    GameUtil.CallWithDelay(display.blockParticleDelayAdd, () =>
+                    {
+                        CastEffectAndWaitSkill(
+                            display.blockPartilePrefabAdd,
+                            display.bloackParticleAddDuration,
+                            block,
+                            display.blockPartileOffsetAdd,
+                            display.blockParticleScaleAdd);
+                    });
                 }
-            });
+            }
+
         }
 
         /// <summary>
@@ -186,17 +241,13 @@ namespace Jyx2
         }
 
 
-        private void ExecuteSoundEffect()
+        private void ExecuteSoundEffect(AudioClip clip)
         {
-            var display = GetDisplay();
-            Jyx2ResourceHelper.LoadAsset<AudioClip>(display.AudioEft, soundEffect =>
-            {
-                if (soundEffect == null)
-                    return;
+            var soundEffect = clip;
+            if (soundEffect == null)
+                return;
 
-                AudioSource.PlayClipAtPoint(soundEffect, Camera.main.transform.position, 1);
-            });
+            AudioManager.PlayClipAtPoint(soundEffect, Camera.main.transform.position);
         }
-
     }
 }

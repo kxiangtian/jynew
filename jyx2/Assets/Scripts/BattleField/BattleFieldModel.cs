@@ -1,9 +1,21 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace Jyx2
 {
+    /// <summary>
+    /// 战斗结果
+    /// </summary>
     public enum BattleResult
     {
         Win,
@@ -11,15 +23,19 @@ namespace Jyx2
         InProgress,
     }
     
+    /// <summary>
+    /// 战场数据核心逻辑
+    /// </summary>
     public class BattleFieldModel
     {
-        //战斗结果
-
         //行动集气
         const float ActionSp = 1000f;
 
         //参与战斗的角色
         public List<RoleInstance> Roles = new List<RoleInstance>();
+
+        //死亡的角色
+        public List<RoleInstance> Dead = new List<RoleInstance>();
 
         public List<RoleInstance> AliveRoles
         {
@@ -62,7 +78,6 @@ namespace Jyx2
         //增加一个战斗角色
         public void AddBattleRole(RoleInstance role, BattleBlockVector pos, int team, bool isAI)
         {
-            role.View.GetAnimator().SetFloat("speed", 0);
             role.BattleModel = this;
             role.Pos = pos;
             role.team = team;
@@ -162,6 +177,7 @@ namespace Jyx2
             {
                 item.isActed = false;
                 item.sp = 0;
+                item.movedStep = 0;
             }
         }
 
@@ -212,6 +228,7 @@ namespace Jyx2
                 {
                     GameObject.Destroy(role.View.gameObject);
                 }
+                Dead.Add(Roles[0]);
                 Roles.RemoveAt(0);
                 role = Roles[0];
             }
@@ -268,5 +285,30 @@ namespace Jyx2
             RoleInstance nextRole = Roles[index];
             return nextRole.isActed;
         }
+        
+        
+        /// <summary>
+        /// 获取一方武学常识总和
+        ///
+        /// 计算方法参考：https://tiexuedanxin.net/thread-365140-1-1.html
+        ///
+        /// 计算我方所有人武学常识之和×2。
+        ///（武学常识<80 不算，生命<0  不算，已死亡的人不算）
+        /// </summary>
+        /// <param name="team"></param>
+        /// <returns></returns>
+        public int GetTotalWuXueChangShi(int team)
+        {
+            int total = 0;
+            foreach (var role in this.AliveRoles)
+            {
+                if (role.Wuxuechangshi < 80 || role.Hp < 0) continue;
+                if (role.team != team) continue;
+                total += role.Wuxuechangshi;
+            }
+
+            return total * 2;
+        }
+
     }
 }

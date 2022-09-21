@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Timeline;
 
@@ -7,8 +8,7 @@ public class PlayableDirectorHelper : MonoBehaviour
 {
     public Animator m_PreviewRole;
 
-    [Header("绑定物体到指定节点上")]
-    public GameObject m_BindObject;
+    [Header("绑定物体到指定节点上")] public GameObject m_BindObject;
     public string m_BindBoneName;
     public bool m_IsLocalTransform;
 
@@ -21,20 +21,19 @@ public class PlayableDirectorHelper : MonoBehaviour
 
     public void BindPlayer(GameObject player)
     {
-        if(m_PreviewRole != null)
+        if (m_PreviewRole != null)
         {
             player.transform.position = m_PreviewRole.transform.position;
             player.transform.rotation = m_PreviewRole.transform.rotation;
         }
-
-        player.SetActive(true);
+        
         BindSignals(player);
     }
 
     private void BindSignals(GameObject player)
     {
         var signalReceiver = GetComponent<SignalReceiver>();
-        if (m_BindObject != null)
+        if (m_BindObject != null && signalReceiver != null)
         {
             m_BindObject.gameObject.SetActive(false);
             var bindObject = Instantiate(m_BindObject);
@@ -53,6 +52,7 @@ public class PlayableDirectorHelper : MonoBehaviour
                     {
                         bindObject.transform.localPosition = m_BindObject.transform.localPosition;
                         bindObject.transform.localRotation = m_BindObject.transform.localRotation;
+                        bindObject.transform.localScale = m_BindObject.transform.localScale;
                     }
                     else
                     {
@@ -66,12 +66,13 @@ public class PlayableDirectorHelper : MonoBehaviour
 
     Transform FindChild(Transform parent, string name)
     {
-        Transform tf = parent.Find(name);
+        Transform tf = parent.Find(name);
         if (tf != null)
-        {
+        {
             return tf;
         }
-        for (int i = 0; i < parent.childCount; i++)
+
+        for (int i = 0; i < parent.childCount; i++)
         {
             Transform target = FindChild(parent.GetChild(i), name);
             if (target != null)
@@ -79,15 +80,13 @@ public class PlayableDirectorHelper : MonoBehaviour
                 return target;
             }
         }
+
         return null;
     }
 
     public void ClearTempObjects()
     {
-        _tempObjs.ForEach(delegate (GameObject go)
-        {
-            GameObject.Destroy(go);
-        });
+        _tempObjs.ForEach(delegate(GameObject go) { GameObject.Destroy(go); });
         _tempObjs.Clear();
     }
 }

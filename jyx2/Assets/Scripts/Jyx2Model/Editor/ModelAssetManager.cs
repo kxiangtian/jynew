@@ -1,11 +1,7 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using GLib;
 using Jyx2;
 using Sirenix.OdinInspector;
 using Sirenix.OdinInspector.Editor;
-using Sirenix.Serialization;
 using Sirenix.Utilities;
 using Sirenix.Utilities.Editor;
 using UnityEditor;
@@ -13,7 +9,7 @@ using UnityEngine;
 
 public class ModelAssetManager : OdinMenuEditorWindow
 {
-    [MenuItem("配置管理器/模型配置管理器")]
+    [MenuItem("项目快速导航/模型配置管理器")]
     private static void OpenWindow()
     {
         GetWindow<ModelAssetManager>().titleContent = new GUIContent()

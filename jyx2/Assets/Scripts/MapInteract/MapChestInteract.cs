@@ -1,7 +1,17 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using Animancer;
+using Cysharp.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Animations;
@@ -14,7 +24,6 @@ namespace Jyx2
     {
 
         public AnimationClip clip;
-        public float ness;
 
         private AnimancerComponent _animancerComponent;
 
@@ -35,16 +44,16 @@ namespace Jyx2
             state.Events.OnEnd = _animancerComponent.Playable.PauseGraph;
             state.NormalizedTime = 1;
         }
-        public void Open(Action action = null)
+        public UniTask Open()
         {
             _animancerComponent.Playable.UnpauseGraph();
             var state = _animancerComponent.Play(clip);
             state.Speed = 1;
             state.Events.OnEnd = () =>
             {
-                action?.Invoke();
                 _animancerComponent.Playable.PauseGraph();
             };
+            return UniTask.Delay(TimeSpan.FromSeconds(clip.length));
         }
 
         public void Close(Action action = null)

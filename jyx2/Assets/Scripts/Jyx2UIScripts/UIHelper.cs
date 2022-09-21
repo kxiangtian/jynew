@@ -1,8 +1,19 @@
-using HSFrameWork.ConfigTable;
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
 using Jyx2;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using i18n.TranslatorDef;
+using Jyx2Configs;
 using UnityEngine;
 
 public class UIHelper
@@ -12,7 +23,7 @@ public class UIHelper
     /// </summary>
     /// <param name="item"></param>
     /// <returns></returns>
-    public static Dictionary<int, int> GetItemEffect(Jyx2Item item) 
+    public static Dictionary<int, int> GetItemEffect(Jyx2ConfigItem item) 
     {
         Dictionary<int, int> result = new Dictionary<int, int>();
         if (item.AddHp != 0)//加血
@@ -49,12 +60,14 @@ public class UIHelper
             result.Add(12, item.Anqi);
         if (item.Wuxuechangshi != 0)//武学常识
             result.Add(21, item.Wuxuechangshi);
-        if (item.AttackFreq != 0)//左右互搏
-            result.Add(24, item.AttackFreq);
+        if (item.Zuoyouhubo != 0)//左右互搏
+            result.Add(24, item.Zuoyouhubo);
         if (item.AttackPoison != 0)//攻击带毒
             result.Add(23, item.AttackPoison);
         if (item.ChangePoisonLevel != 0)//中毒解毒
             result.Add(26, item.ChangePoisonLevel);
+        if (item.AddTili != 0) //体力
+            result.Add(14, item.AddTili);
 
 
         return result;
@@ -64,7 +77,7 @@ public class UIHelper
     /// 获取使用物品的需求 //NeedMPType; 
     /// </summary>
     /// <param name="item"></param>
-    public static Dictionary<int, int> GetUseItemRequire(Jyx2Item item) 
+    public static Dictionary<int, int> GetUseItemRequire(Jyx2ConfigItem item) 
     {
         Dictionary<int, int> result = new Dictionary<int, int>();
         if (item.ConditionMp > 0)
@@ -75,6 +88,8 @@ public class UIHelper
             result.Add(3, item.ConditionQinggong);
         if (item.ConditionPoison > 0)
             result.Add(7, item.ConditionPoison);
+        if (item.ConditionHeal > 0)
+            result.Add(6, item.ConditionHeal);
         if (item.ConditionDePoison > 0)
             result.Add(8, item.ConditionDePoison);
         if (item.ConditionQuanzhang > 0)
@@ -85,6 +100,8 @@ public class UIHelper
             result.Add(11, item.ConditionShuadao);
         if (item.ConditionQimen > 0)
             result.Add(20, item.ConditionQimen);
+        if (item.ConditionAnqi > 0)
+            result.Add(12, item.ConditionAnqi);
         if (item.ConditionIQ > 0)
             result.Add(25, item.ConditionIQ);
 
@@ -92,8 +109,22 @@ public class UIHelper
 
     }
 
+    //使用人
+    static string GetItemUser(Jyx2ConfigItem item)
+    {
+        StringBuilder sb = new StringBuilder();
+
+        RoleInstance user = GameRuntimeData.Instance.GetRoleInTeam(GameRuntimeData.Instance.GetItemUser(item.Id));
+        if (user != null)
+        {
+            sb.Append($"{user.Name}\n");
+        }
+
+        return sb.ToString();
+    }
+
     //效果
-    static string GetEffectText(Jyx2Item item)
+    static string GetEffectText(Jyx2ConfigItem item)
     {
         Dictionary<int, int> effects = UIHelper.GetItemEffect(item);
         StringBuilder sb = new StringBuilder();
@@ -109,13 +140,13 @@ public class UIHelper
     }
 
     //使用要求
-    static string GetUseRquire(Jyx2Item item)
+    static string GetUseRquire(Jyx2ConfigItem item)
     {
         Dictionary<int, int> effects = UIHelper.GetUseItemRequire(item);
         StringBuilder sb = new StringBuilder();
         if (item.NeedExp > 0)
         {
-            sb.Append($"经验:  {item.NeedExp}\n");
+            //sb.Append($"经验:  {item.NeedExp}\n");
         }
         foreach (var effect in effects)
         {
@@ -128,16 +159,27 @@ public class UIHelper
     }
 
     //产出
-    static string GetOutPut(Jyx2Item item)
+    static string GetOutPut(Jyx2ConfigItem item)
     {
-        List<Jyx2RoleItem> items = item.GenerateItems;
-        if (items == null || items.Count <= 0)
+        if (item.GenerateItems == "")
             return "";
+        
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < items.Count; i++)
+        
+        var GenerateItemList = new List<Jyx2ConfigCharacterItem>();
+        var GenerateItemArr = item.GenerateItems.Split('|');
+        foreach (var GenerateItem in GenerateItemArr)
         {
-            Jyx2RoleItem tempItem = items[i];
-            Jyx2Item cfg = ConfigTable.Get<Jyx2Item>(tempItem.Id);
+            var GenerateItemArr2 = GenerateItem.Split(',');
+            if (GenerateItemArr2.Length != 2) continue;
+            var characterItem = new Jyx2ConfigCharacterItem();
+            characterItem.Id = int.Parse(GenerateItemArr2[0]);
+            characterItem.Count = int.Parse(GenerateItemArr2[1]);
+            GenerateItemList.Add(characterItem);
+        }
+        foreach (var tempItem in GenerateItemList)
+        {
+            var cfg = GameConfigDatabase.Instance.Get<Jyx2ConfigItem>(tempItem.Id);
             if (cfg == null)
                 continue;
             sb.Append($"{cfg.Name}:  {tempItem.Count}\n");
@@ -147,34 +189,47 @@ public class UIHelper
     }
 
     //需要物品
-    static string GetNeedItem(Jyx2Item item)
+    static string GetNeedItem(Jyx2ConfigItem item)
     {
         StringBuilder sb = new StringBuilder();
         if (item.GenerateItemNeedExp > 0)
         {
-            sb.Append($"练出物品需经验:  {item.GenerateItemNeedExp}\n");
+           /* sb.Append($"练出物品需经验:  {item.GenerateItemNeedExp}\n");*/
         }
-        if (item.GenerateItemNeedCost > 0)
+        
+        if (item.GenerateItemNeedCost != -1)
         {
-            Jyx2Item cfg = ConfigTable.Get<Jyx2Item>(item.GenerateItemNeedCost);
-            if (cfg != null)
-                sb.Append($"材料:  {cfg.Name}\n");
+            sb.Append($"材料:  {GameConfigDatabase.Instance.Get<Jyx2ConfigItem>(item.GenerateItemNeedCost).Name}\n");
         }
 
         return sb.ToString();
     }
 
-    static string GetItemDesText(Jyx2Item item)
+    public static string GetItemDesText(Jyx2ConfigItem item)
     {
         StringBuilder strBuilder = new StringBuilder();
         strBuilder.Append($"<size=35><color=#FFDB00>{item.Name}</color></size>\n");
         strBuilder.Append($"{item.Desc}");
 
+        string user = GetItemUser(item);
+        if (!string.IsNullOrEmpty(user))
+        {
+            strBuilder.Append($"\n\n");
+            strBuilder.Append("<size=28><color=#FFDB00>使用人</color></size>\n");
+            strBuilder.Append(user);
+        }
         string effect = GetEffectText(item);
         if (!string.IsNullOrEmpty(effect))
         {
             strBuilder.Append($"\n\n");
-            strBuilder.Append("<size=28><color=#FFDB00>效果</color></size>\n");
+            //---------------------------------------------------------------------------
+            //strBuilder.Append("<size=28><color=#FFDB00>效果</color></size>\n");
+            //---------------------------------------------------------------------------
+            //特定位置的翻译【MainMenu右下角当前版本的翻译】
+            //---------------------------------------------------------------------------
+            strBuilder.Append("<size=28><color=#FFDB00>效果</color></size>\n".GetContent(nameof(UIHelper)));
+            //---------------------------------------------------------------------------
+            //---------------------------------------------------------------------------
             strBuilder.Append(effect);
         }
 
@@ -203,17 +258,6 @@ public class UIHelper
         }
 
         return strBuilder.ToString();
-    }
-
-    public static string GetItemDesText(int itemId) 
-    {
-        Jyx2Item item = ConfigTable.Get<Jyx2Item>(itemId);
-        if (item == null) 
-        {
-            GameUtil.LogError("配置表错误，查询不到物品，itemid=" + itemId);
-            return "";
-        }
-        return GetItemDesText(item);
     }
 }
  

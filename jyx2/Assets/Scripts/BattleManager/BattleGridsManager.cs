@@ -1,8 +1,17 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using HanSquirrel.ResourceManager;
+
 
 
 namespace Jyx2.Battle
@@ -21,12 +30,6 @@ namespace Jyx2.Battle
             CreateBattleGround(16, 12, cellWidth/2,cellHeight/2);
         }
 
-        // Update is called once per frame
-        void Update()
-        {
-
-        }
-
         public void CreateBattleGround(int xCount,int yCount,float xPivot = 0.0f,float yPivot = 0.0f)
         {
             ClearBattleGround();
@@ -37,7 +40,7 @@ namespace Jyx2.Battle
             gridsPivotX = yPivot;
             float firstPivotX = gridsPivotX - xCount / 2 * cellWidth;
             float firstPivotY = gridsPivotY - yCount / 2 * cellHeight;
-            var prefab = Jyx2ResourceHelper.GetCachedPrefab("Assets/Prefabs/NewBattleObject/BattleGridCeil.prefab");
+            var prefab = Jyx2ResourceHelper.GetCachedPrefab("BattleGridCeil");
             for (int i = 0; i < gridsCountX; i++)
             {
                 for (int j = 0; j < gridsCountY; j++)

@@ -1,8 +1,20 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
+using System;
 using DG.Tweening;
 using Jyx2;
-using HSFrameWork.ConfigTable;
+
 using System.Collections;
 using System.Collections.Generic;
+using Jyx2Configs;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,19 +23,23 @@ public class JYX2DebugPanel : MonoBehaviour
     public Dropdown m_ChangeScene;
     public Dropdown m_TransportDropdown;
 
-    List<GameMap> m_ChangeSceneMaps = new List<GameMap>();
+    List<Jyx2ConfigMap> m_ChangeSceneMaps = new List<Jyx2ConfigMap>();
     bool _debugPanelSwitchOff = false;
+
+    public bool IsDebugPanelSwitchOff()
+    {
+        return _debugPanelSwitchOff;
+    }
 
     //打开和关闭面板
     public void DebugPanelSwitch()
     {
-        if (_debugPanelSwitchOff)
+        transform.DOLocalMoveX(_debugPanelSwitchOff ? -1360f : -960f, 0.3f);
+        
+        LevelMaster lm = LevelMaster.Instance;
+        if (lm != null)
         {
-            transform.DOLocalMoveX(-1360f, 0.3f);
-        }
-        else
-        {
-            transform.DOLocalMoveX(-960f, 0.3f);
+            lm.ForceSetEnable(!_debugPanelSwitchOff);
         }
 
         _debugPanelSwitchOff = !_debugPanelSwitchOff;
@@ -36,7 +52,7 @@ public class JYX2DebugPanel : MonoBehaviour
         m_ChangeScene.ClearOptions();
         List<string> activeMaps = new List<string>();
         activeMaps.Add("选择场景");
-        foreach (var map in ConfigTable.GetAll<GameMap>())
+        foreach (var map in GameConfigDatabase.Instance.GetAll<Jyx2ConfigMap>())
         {
             if (map.Tags.Contains("BATTLE")) continue;
             activeMaps.Add(map.GetShowName());
@@ -63,19 +79,53 @@ public class JYX2DebugPanel : MonoBehaviour
     }
 
     //切换场景
-    public void OnChangeScene(int value)
+    public async void OnChangeScene(int value)
     {
         if (value == 0) return;
 
-        var levelKey = m_ChangeSceneMaps[value - 1].Key;
-        LevelLoader.LoadGameMap(levelKey);
+        var id = m_ChangeSceneMaps[value - 1].Id;
+
+        var curMap = LevelMaster.GetCurrentGameMap();
+        if (!curMap.Tags.Contains("WORLDMAP"))
+        {
+            string msg = "<color=red>警告：不在大地图上执行传送可能会导致某些剧情中断，强烈建议您退到大地图再执行。是否强行执行？</color>";
+            List<string> selectionContent = new List<string>() { "是(Y)", "否(N)" };
+            await Jyx2_UIManager.Instance.ShowUIAsync(nameof(ChatUIPanel), ChatType.Selection, "0", msg, selectionContent, new Action<int>((index) =>
+            {
+                if (index == 0)
+                {
+                    LevelLoader.LoadGameMap(GameConfigDatabase.Instance.Get<Jyx2ConfigMap>(id));
+                }
+            }));
+        }
+        else
+        {
+            LevelLoader.LoadGameMap(GameConfigDatabase.Instance.Get<Jyx2ConfigMap>(id));
+        }
     }
 
-    public void OnTransport(int value)
+    public async void OnTransport(int value)
     {
         if (value == 0) return;
         var transportName = m_TransportDropdown.options[value].text;
-        LevelMaster.Instance.Transport(transportName);
+
+        var curMap = LevelMaster.GetCurrentGameMap();
+        if (!curMap.Tags.Contains("WORLDMAP"))
+        {
+            string msg = "<color=red>警告：不在大地图上执行传送可能会导致某些剧情中断，强烈建议您退到大地图再执行。是否强行执行？</color>";
+            List<string> selectionContent = new List<string>() { "是(Y)", "否(N)" };
+            await Jyx2_UIManager.Instance.ShowUIAsync(nameof(ChatUIPanel), ChatType.Selection, "0", msg, selectionContent, new Action<int>((index) =>
+            {
+                if (index == 0)
+                {
+                    LevelMaster.Instance.Transport(transportName);
+                }
+            }));
+        }
+        else
+        {
+            LevelMaster.Instance.Transport(transportName);
+        }
     }
     #endregion
 

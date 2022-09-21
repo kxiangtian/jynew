@@ -1,6 +1,17 @@
-using HSFrameWork.Common;
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
 using ProtoBuf;
 using System.Xml.Serialization;
+using Jyx2.Middleware;
+using Jyx2Configs;
 
 namespace Jyx2
 {
@@ -9,35 +20,31 @@ namespace Jyx2
     {
         #region 行为结果
         //移动到的位置
-        [ProtoMember(1)]
         [XmlAttribute]
         public int MoveX;
-
-        [ProtoMember(2)]
+        
         [XmlAttribute]
         public int MoveY;
 
         //使用的招式
         [XmlIgnore]
-        public BattleZhaoshiInstance Zhaoshi;
-
-        [ProtoMember(3)]
+        public SkillCastInstance SkillCast;
+        
         [XmlAttribute("skill")]
-        public string zhaoshiPK
+        public string skillCastPK
         {
             get
             {
-                if (Zhaoshi == null) return string.Empty;
-                return Zhaoshi.Data.PK;
+                if (SkillCast == null) return string.Empty;
+                return SkillCast.Data.Key.ToString();
             }
             set { }
         }
 
         //攻击坐标
-        [ProtoMember(4)]
         [XmlAttribute]
         public int AttackX;
-        [ProtoMember(5)]
+
         [XmlAttribute]
         public int AttackY;
 
@@ -46,9 +53,8 @@ namespace Jyx2
         public bool IsRest;
 
         //使用的道具
-        [ProtoMember(6)]
         [XmlAttribute]
-        public Jyx2Item Item;
+        public Jyx2ConfigItem Item;
         #endregion
 
 
@@ -58,12 +64,12 @@ namespace Jyx2
     {
         public SkillCastResult() { }
 
-        public SkillCastResult(RoleInstance sprite, RoleInstance target, BattleZhaoshiInstance tzhaoshi, int targetx, int targety)
+        public SkillCastResult(RoleInstance sprite, RoleInstance target, SkillCastInstance tSkillCast, int targetx, int targety)
         {
             //self = new SkillCastRoleEffect(sprite);
             r1 = sprite;
             r2 = target;
-            zhaoshi = tzhaoshi;
+            skillCast = tSkillCast;
             skilltarget_x = targetx;
             skilltarget_y = targety;
         }
@@ -72,7 +78,7 @@ namespace Jyx2
         public int skilltarget_y;
 
         [XmlIgnore]
-        public BattleZhaoshiInstance zhaoshi;
+        public SkillCastInstance skillCast;
 
         [XmlIgnore]
         public RoleInstance r1;
@@ -82,27 +88,23 @@ namespace Jyx2
 
         public int damage; //伤害
         public int damageMp;
+        public int addMp; //增加内力
+        public int addMaxMp;
         public int poison;
         public int depoison;
         public int heal;
+        public int hurt;
 
         public double GetTotalScore()
         {
-            if(r1.team != r2.team)
-            {
-                float scale = 1;
-                if (damage >= r2.Hp)
-                    scale = 1.25f;
-                float attackTwiceScale = 1;
-                if (r1.Zuoyouhubo == 1)
-                    attackTwiceScale = 2;
+            float scale = 1;
+            if (damage >= r2.Hp)
+                scale = 1.25f;
+            float attackTwiceScale = 1;
+            if (r1.Zuoyouhubo == 1)
+                attackTwiceScale = 2;
 
-                return attackTwiceScale * scale * damage + attackTwiceScale * damageMp / 5 + poison;
-            }else if(r1.team == r2.team)
-            {
-                return depoison + heal;
-            }
-            return 0;
+            return attackTwiceScale * scale * damage + attackTwiceScale * damageMp / 5;
         }
 
         public bool IsDamage()
@@ -112,23 +114,25 @@ namespace Jyx2
 
         /// <summary>
         /// 具体执行改逻辑
+        /// 战斗经验计算公式可以参考：https://github.com/ZhanruiLiang/jinyong-legend
         /// </summary>
+        /// <returns></returns>
         public void Run()
         {
             var rst = this;
             if (rst.damage > 0)
             {
-                if (rst.damage > r2.Hp) rst.damage = r2.Hp;
                 r2.Hp -= rst.damage;
 
                 if (r2.View != null)
                 {
-                    r2.View.SetDamage(rst.damage, r2.Hp);
+                    r2.View.SetDamage(rst.damage);
                 }
 
-                r1.ExpGot += rst.damage;
+                r1.ExpGot += 2 + rst.damage / 5;
+                //打死敌人获得额外经验
                 if (r2.Hp <= 0)
-                    r1.ExpGot += rst.damage / 2;
+                    r1.ExpGot += r2.Level * 10;
 
                 //无敌
                 if(BattleManager.Whosyourdad && r2.team == 0)
@@ -146,7 +150,18 @@ namespace Jyx2
                     r2.View.ShowAttackInfo($"<color=blue>内力-{damageMp}</color>");
                 }
 
-                r1.ExpGot += damageMp / 2;
+                //吸取内力逻辑
+                if (rst.addMp > 0)
+                {
+                    r1.MaxMp = Tools.Limit(r1.MaxMp + rst.addMaxMp, 0, GameConst.MAX_ROLE_MP);
+                    int finalMp = Tools.Limit(r1.Mp + rst.addMp, 0, r1.MaxMp);
+                    int deltaMp = finalMp - r1.Mp;
+                    if (deltaMp >= 0)
+                    {
+                        r1.View.ShowAttackInfo($"<color=blue>内力+{deltaMp}</color>");
+                        r1.Mp = finalMp;
+                    }
+                }
             }
 
             if (rst.poison > 0)
@@ -157,7 +172,7 @@ namespace Jyx2
                     r2.View.ShowAttackInfo($"<color=green>中毒+{rst.poison}</color>");
                 }
 
-                r1.ExpGot += rst.poison;
+                r1.ExpGot += 1;
             }
 
             if (rst.depoison > 0)
@@ -168,7 +183,7 @@ namespace Jyx2
                     r2.View.ShowAttackInfo($"<color=green>中毒-{rst.depoison}</color>");
                 }
 
-                r1.ExpGot += rst.depoison;
+                r1.ExpGot += 1;
             }
 
             if (rst.heal > 0)
@@ -182,8 +197,11 @@ namespace Jyx2
                     r2.View.ShowAttackInfo($"<color=white>医疗+{addHp}</color>");
                 }
 
-                r1.ExpGot += rst.heal;
+                r1.ExpGot += 1;
             }
+
+            r2.Hurt += rst.hurt;
+            r2.Hurt = Tools.Limit(r2.Hurt, 0, GameConst.MAX_HURT);
         }
     }
 }

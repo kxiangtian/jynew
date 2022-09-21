@@ -1,23 +1,33 @@
-using System.Collections;
-using System.Collections.Generic;
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
 using UnityEngine;
-using HSFrameWork;
 using Jyx2;
-using HSFrameWork.ConfigTable;
-using System.IO;
-using System.Threading;
-using HSFrameWork.Common;
-using Jyx2.Middleware;
-using Jyx2.Setup;
+using Sirenix.OdinInspector;
 
 public class Jyx2SkillEditor : MonoBehaviour
 {
-    public MapRole player;
+    public BattleRole player;
 
     public Jyx2SkillEditorEnemy[] enemys;
+
+    public Transform[] faceTrans;
+    public Transform[] lineTrans;
+    public Transform[] crossTrans;
+
+    [LabelText("是否测试左右互搏")]
+    public bool TestZuoyouhubo = false;
     // Start is called before the first frame update
-    void Start()
+    async void Start()
     {
+        /*
         FileSystemWatcher watcher;
 
         //监控excel文件夹
@@ -29,20 +39,25 @@ public class Jyx2SkillEditor : MonoBehaviour
         watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.LastAccess | NotifyFilters.Size;
         watcher.Changed += Watcher_Changed;
         watcher.EndInit();
+        */
 
 
         player.IsInBattle = true;
-        Container.TryResolve<IXLsReloader>()?.Do();
+        //Container.TryResolve<IXLsReloader>()?.Do();
 
-        Jyx2_UIManager.Instance.ShowUI("SkillEditorUIPanel",player,enemys);
+        await RuntimeEnvSetup.Setup();
+        
+        await Jyx2_UIManager.Instance.ShowUIAsync(nameof(SkillEditorUIPanel),player,enemys);
     }
 
+    /*
     private void Watcher_Changed(object sender, FileSystemEventArgs e)
     {
         updateExcel = true;
     }
 
     bool updateExcel = false;
+    */
 
 
 
@@ -51,12 +66,24 @@ public class Jyx2SkillEditor : MonoBehaviour
     {
       
 
+        /*
         if (updateExcel)
         {
             updateExcel = false;
             Container.TryResolve<IXLsReloader>()?.Do();
         }
+        */
 
       
+    }
+
+    /// <summary>
+    /// 预览技能
+    /// </summary>
+    /// <param name="skillName"></param>
+    public void PreviewSkill(string skillName)
+    {
+        var skillEditorUIPanel = FindObjectOfType<SkillEditorUIPanel>();
+        skillEditorUIPanel.SwitchToSkill(skillName);
     }
 }

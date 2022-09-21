@@ -1,15 +1,27 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
-using HanSquirrel.ResourceManager;
-using HSFrameWork.ConfigTable;
+
+
 using UnityEngine;
 
 namespace Jyx2
 {
+
+#if JYX2_USE_HSFRAMEWORK
+    
     [XmlType("jyx2item")]
     public class Jyx2Item : BaseBean
     {
@@ -33,8 +45,21 @@ namespace Jyx2
         [XmlAttribute]
         public int AnqiAnimation; //暗器动画编号
 
-        [XmlAttribute]
-        public int User; //使用人
+
+        //使用人
+        public int User
+        {
+            get
+            {
+                if (!GameRuntimeData.Instance.ItemUser.ContainsKey(Id))
+                    return -1;
+                return GameRuntimeData.Instance.ItemUser[Id];
+            }
+            set
+            {
+                GameRuntimeData.Instance.ItemUser[Id] = value;
+            }
+        }
 
         [XmlAttribute]
         public int EquipmentType; //装备类型
@@ -44,6 +69,11 @@ namespace Jyx2
 
         [XmlAttribute]
         public int ItemType; //物品类型
+
+        public Jyx2ItemType GetItemType()
+        {
+            return (Jyx2ItemType) ItemType;
+        }
 
         [XmlAttribute]
         public int AddHp; //加生命
@@ -167,6 +197,7 @@ namespace Jyx2
 
         [XmlElement]
         public List<Jyx2RoleItem> GenerateItems; //练出物品
-
+        
     }
+#endif
 }

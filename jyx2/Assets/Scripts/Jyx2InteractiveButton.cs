@@ -1,3 +1,12 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,9 +17,9 @@ using UnityEngine.UI;
 
 namespace Jyx2
 {
-    public class Jyx2InteractiveButton
+    public static class Jyx2InteractiveButton
     {
-        static public void Show(string text, Action callback)
+        public static void Show(string text, Action callback)
         {
             var btn = GetInteractiveButton();
             if(btn != null)
@@ -23,7 +32,7 @@ namespace Jyx2
             }
         }
 
-        static public void Hide()
+        public static void Hide()
         {
             var btn = GetInteractiveButton();
             if(btn != null)
@@ -32,7 +41,7 @@ namespace Jyx2
             }
         }
 
-        static Button GetInteractiveButton()
+        public static Button GetInteractiveButton()
         {
             var root = GameObject.Find("LevelMaster/UI");
             var btn = root.transform.Find("InteractiveButton").GetComponent<Button>();

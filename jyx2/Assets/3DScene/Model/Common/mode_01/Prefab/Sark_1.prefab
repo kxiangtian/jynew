@@ -164,7 +164,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   clip: {fileID: 1827226128182048838, guid: b9431bf6c713ca945b2061c00376ecf0, type: 3}
-  ness: 0
 --- !u!1 &7763500541394622079
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,5 +1,15 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using Animancer;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 namespace Jyx2
@@ -14,20 +24,29 @@ namespace Jyx2
         private HybridAnimancerComponent _animancer;
         public HybridAnimancerComponent GetAnimancer()
         {
-            if (_animancer == null)
-            {
-                var animator = GetAnimator();
-                _animancer = GameUtil.GetOrAddComponent<HybridAnimancerComponent>(animator.transform);
+            //TODO:判断是否销毁了_animacer，替换模型_animacer不会立即消失……,所以直接每次都get一次
+            var animator = GetAnimator();
+            _animancer = GameUtil.GetOrAddComponent<HybridAnimancerComponent>(animator.transform);
+            
+            if(_animancer.Animator == null)
                 _animancer.Animator = animator;
+            
+            if(_animancer.Controller == null)
                 _animancer.Controller = animator.runtimeAnimatorController;
-            }
+            
             return _animancer;
+        }
+
+        protected void InitAnimantionSystem()
+        {
+            GetAnimator();
+            GetAnimancer();
         }
         
         /// <summary>
         /// 当前的技能播放
         /// </summary>
-        public Jyx2SkillDisplay CurDisplay { get; set; }
+        public Jyx2SkillDisplayAsset CurDisplay { get; set; }
 
         bool IsStandardModelAvata()
         {
@@ -38,20 +57,15 @@ namespace Jyx2
         
         public virtual void Idle()
         {
-            if (this == null)
+            if (this == null || CurDisplay == null)
                 return;
-            
-            string code = CurDisplay.IdleAnim;
-            if (!PlayScriptAnimation(code))
-            {
-                var animator = GetAnimator();
-                if (animator != null)
-                {
-                    animator.SetBool("InBattle", true);
-                    animator.SetFloat("PosCode", float.Parse(code));
-                    animator.SetTrigger("battle_idle");    
-                }
-            }
+
+            PlayAnimation(CurDisplay.LoadAnimation(Jyx2SkillDisplayAsset.Jyx2RoleAnimationType.Idle));
+        }
+
+        public virtual void DeadOrIdle()
+        {
+            Idle();
         }
         
         public virtual void BeHit()
@@ -59,15 +73,17 @@ namespace Jyx2
             if (this == null)
                 return;
 
-            string code = CurDisplay.GetBeHitAnimationCode();
-            if (!PlayScriptAnimation(code, Idle, 0.25f))
+            AnimationClip clip = null;
+            if (CurDisplay == null)
             {
-                var animator = GetAnimator();
-                if (animator != null)
-                {
-                    animator.SetTrigger("hit");
-                }
+                clip = GlobalAssetConfig.Instance.defaultBeHitClip;
             }
+            else
+            {
+                clip = CurDisplay.LoadAnimation(Jyx2SkillDisplayAsset.Jyx2RoleAnimationType.Behit);
+            }
+            
+            PlayAnimation(clip, DeadOrIdle, 0.25f);
         }
 
         public virtual void Attack()
@@ -75,37 +91,29 @@ namespace Jyx2
             if (this == null)
                 return;
 
-            string code = CurDisplay.AttackAnim;
-            if (!PlayScriptAnimation(code, Idle, 0.25f))
-            {
-                var animator = GetAnimator();
-                if (animator != null)
-                {
-                    animator.SetFloat("AttackCode", float.Parse(code));
-                    animator.SetTrigger("attack");
-                }
-            }
+            PlayAnimation(CurDisplay.LoadAnimation(Jyx2SkillDisplayAsset.Jyx2RoleAnimationType.Attack), 
+                Idle, 0.25f);
         }
 
         public virtual void Run()
         {
             if (this == null)
                 return;
-
-            string code = CurDisplay.RunAnim; //TODO
-            if (!PlayScriptAnimation(code))
+            
+            AnimationClip clip = null;
+            if (CurDisplay == null)
             {
-                var animator = GetAnimator();
-                if (animator != null)
-                {
-                    animator.SetBool("InBattle", true);
-                    animator.SetFloat("PosCode", float.Parse(code));
-                    animator.ResetTrigger("battle_idle");
-                    animator.SetTrigger("move");
-                }
+                clip = GlobalAssetConfig.Instance.defaultMoveClip;
             }
-        }
+            else
+            {
+                clip = CurDisplay.LoadAnimation(Jyx2SkillDisplayAsset.Jyx2RoleAnimationType.Move);
+            }
 
+            PlayAnimation(clip);
+        }
+        
+        
         public virtual void ShowDamage()
         {
             //DONOTHING
@@ -121,55 +129,55 @@ namespace Jyx2
             //DONOTHING
         }
 
-        private bool PlayScriptAnimation(string animCode, Action callback = null, float fadeDuration = 0f)
+        public UniTask PlayAnimationAsync(AnimationClip clip, float fadeDuration = 0f)
         {
-            var animancer = GetAnimancer();
-            
-            //直接指定地址
-            if (animCode.StartsWith("@"))
+            UniTaskCompletionSource source = new UniTaskCompletionSource();
+            PlayAnimation(clip, () =>
             {
-                string path = animCode.TrimStart('@');
-                
-                Jyx2ResourceHelper.LoadAsset<AnimationClip>(path, (clip) =>
-                {
-                    //检查动作配置是否正确
-                    if (clip.isLooping && callback != null)
-                    {
-                        Debug.LogError($"动作设置了LOOP但是会有回调！请检查{path}");
-                    }
-                    else if (!clip.isLooping && callback == null)
-                    {
-                        Debug.LogError($"动作没设置LOOP但是没有回调！请检查{path}");
-                    }
-
-                    var state = animancer.Play(clip);
-
-
-                    //callback if needed
-                    if (callback != null)
-                    {
-                        if (fadeDuration > 0)
-                        {
-                            GameUtil.CallWithDelay(state.Duration - fadeDuration, callback);
-                        }
-                        else
-                        {
-                            state.Events.OnEnd = () =>
-                            {
-                                state.Stop();
-                                callback();
-                            };
-                        }
-                    }
-                });
-                return true;
+                source.TrySetResult();
+            }, fadeDuration);
+            return source.Task;
+        }
+        
+        public void PlayAnimation(AnimationClip clip, Action callback = null, float fadeDuration = 0f)
+        {
+            if (clip == null)
+            {
+                Debug.LogError("调用了空的动作!");
+                callback ? .Invoke();
+                return;
             }
-            else
+            
+            var animancer = GetAnimancer();
+            animancer.Stop();
+
+            //检查动作配置是否正确
+            if (clip.isLooping && callback != null)
             {
-                //animancer.Stop(); //force switch to AnimationController
-                animancer.PlayController(); //fade to AnimationController
-                return false;
-            }   
+                Debug.LogError($"动作设置了LOOP但是会有回调！请检查{clip.name}");
+            }
+            else if (!clip.isLooping && callback == null)
+            {
+                Debug.LogError($"动作没设置LOOP但是没有回调！请检查{clip.name}");
+            }
+            
+            var state = animancer.Play(clip, 0.25f);
+
+            if (callback != null)
+            {
+                if (fadeDuration > 0)
+                {
+                    GameUtil.CallWithDelay(state.Duration - fadeDuration, callback);
+                }
+                else
+                {
+                    state.Events.OnEnd = () =>
+                    {
+                        state.Stop();
+                        callback();
+                    };
+                }
+            }
         }
     }
 }

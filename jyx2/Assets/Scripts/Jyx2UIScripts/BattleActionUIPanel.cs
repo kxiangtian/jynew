@@ -1,273 +1,511 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using Jyx2;
 using Jyx2.Middleware;
-using HSFrameWork.ConfigTable;
+
 using Jyx2;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Cysharp.Threading.Tasks;
+using Jyx2.Battle;
+using Jyx2Configs;
 using UnityEngine;
 using UnityEngine.UI;
 
-public partial class BattleActionUIPanel:Jyx2_UIBase
+public partial class BattleActionUIPanel : Jyx2_UIBase
 {
-    RoleInstance m_currentRole;
-    BattleManager.BattleViewStates m_currentState;
-    SkillUIItem m_selectItem;
-    bool m_chooseBtn = false;//ÊÇ·ñÒÑ¾­Ñ¡ÔñÁËÓÃ¶¾ÕâÐ©¼¼ÄÜ°´Å¥
-    List<SkillUIItem> m_curItemList = new List<SkillUIItem>();
-    ChildGoComponent childMgr;
-    protected override void OnCreate()
-    {
-        InitTrans();
-        childMgr = GameUtil.GetOrAddComponent<ChildGoComponent>(Skills_RectTransform);
-        childMgr.Init(SkillItem_RectTransform);
+	public RoleInstance GetCurrentRole()
+	{
+		return m_currentRole;
+	}
 
-        BindListener(Move_Button, OnMoveClick);
-        BindListener(UsePoison_Button, OnUsePoisonClick);
-        BindListener(Depoison_Button, OnDepoisonClick);
-        BindListener(Heal_Button, OnHealClick);
-        BindListener(Item_Button, OnUseItemClick);
-        BindListener(Wait_Button, OnWaitClick);
-        BindListener(Rest_Button, OnRestClick);
-        BindListener(Cancel_Button, OnCancelClick);
-    }
+	RoleInstance m_currentRole;
 
-    protected override void OnShowPanel(params object[] allParams)
-    {
-        base.OnShowPanel(allParams);
-        m_currentRole = allParams[0] as RoleInstance;
-        if (m_currentRole == null)
-            return;
-        if (allParams.Length > 1)
-            m_currentState = (BattleManager.BattleViewStates)allParams[1];
-        Cancel_Button.gameObject.SetActive(false);
-        SetActionBtnState();
-        RefreshSkill();
-        SetPanelState();
-    }
+	List<SkillUIItem> m_curItemList = new List<SkillUIItem>();
+	ChildGoComponent childMgr;
 
-    protected override void OnHidePanel()
-    {
-        base.OnHidePanel();
-        m_currentState = BattleManager.BattleViewStates.None;
-        m_currentRole = null;
-        m_selectItem = null;
-        m_curItemList.Clear();
-    }
+	private bool isSelectMove;
+	private Action<BattleLoop.ManualResult> callback;
+	private List<BattleBlockVector> moveRange;
+	private BattleFieldModel battleModel;
+	private SkillCastInstance currentSkill;
+	private Dictionary<Button, Action> skillList = new Dictionary<Button, Action>();
 
-    void SetActionBtnState() 
-    {
-        //TODO roleInstanceºÍÕâÀïÂß¼­²»Ò»Ñù 
-        bool canPoison = m_currentRole.UsePoison > 0 && m_currentRole.Tili >= 30;
-        UsePoison_Button.gameObject.SetActive(canPoison);
-        bool canDepoison = m_currentRole.DePoison > 0 && m_currentRole.Tili >= 30;
-        Depoison_Button.gameObject.SetActive(canDepoison);
-        bool canHeal = m_currentRole.Heal > 0 && m_currentRole.Tili >= 10;
-        Heal_Button.gameObject.SetActive(canHeal);
+	protected override void OnCreate()
+	{
+		InitTrans();
+		childMgr = GameUtil.GetOrAddComponent<ChildGoComponent>(Skills_RectTransform);
+		childMgr.Init(SkillItem_RectTransform);
 
-        bool lastRole = BattleManager.Instance.GetModel().IsLastRole(m_currentRole);
-        Wait_Button.gameObject.SetActive(!lastRole);
+		BindListener(Move_Button, OnMoveClick);
+		BindListener(UsePoison_Button, OnUsePoisonClick);
+		BindListener(Depoison_Button, OnDepoisonClick);
+		BindListener(Heal_Button, OnHealClick);
+		BindListener(Item_Button, OnUseItemClick);
+		BindListener(Wait_Button, OnWaitClick);
+		BindListener(Rest_Button, OnRestClick);
+		BindListener(Cancel_Button, OnCancelClick);
+	}
 
-        Cancel_Button.gameObject.SetActive(m_currentState == BattleManager.BattleViewStates.SelectMove
-            || m_currentState == BattleManager.BattleViewStates.SelectSkill);
-    }
+	protected override bool captureGamepadAxis { get { return true; } }
 
-    void RefreshSkill()
-    {
-        m_curItemList.Clear();
-        var zhaoshis = m_currentRole.GetZhaoshis(true).ToList();
-        childMgr.RefreshChildCount(zhaoshis.Count);
-        List<Transform> childTransList = childMgr.GetUsingTransList();
-        for (int i = 0; i < zhaoshis.Count; i++)
-        {
-            SkillUIItem item = GameUtil.GetOrAddComponent<SkillUIItem>(childTransList[i]);
-            item.RefreshSkill(zhaoshis[i]);
-            item.SetSelect(m_selectItem == item);
+	protected override Text getButtonText(Button button)
+	{
+		if (button.gameObject.transform.childCount == 1)
+			return base.getButtonText(button);
 
-            Button btn = item.GetComponent<Button>();
-            BindListener(btn, () => 
-            {
-                OnItemClick(item);
-            });
-            m_curItemList.Add(item);
-        }
-    }
+		for (var i = 0; i < button.gameObject.transform.childCount; i++)
+		{
+			var text = button.gameObject.transform.GetChild(i).GetComponent<Text>();
+			if (text != null)
+				return text;
+		}
 
-    //Ãæ°åµÄ×´Ì¬¸úËæ×´Ì¬»ú
-    void SetPanelState() 
-    {
-        if (m_currentState == BattleManager.BattleViewStates.SelectMove)
-        {
-            m_selectItem = null;
-            m_chooseBtn = false;
-        } else if (m_currentState == BattleManager.BattleViewStates.SelectSkill) 
-        {
-            if (BattleStateMechine.Instance.CurrentZhaoshi == null) 
-            {
-                if (m_curItemList.Count > 0)
-                {
-                    m_selectItem = m_curItemList[0];
-                    BattleStateMechine.Instance.BindSkill(m_selectItem.GetSkill());
-                }
-                m_chooseBtn = false;
-                UpdateSelect();
-                return;
-            }
-            for (int i = 0; i < m_curItemList.Count; i++)
-            {
-                if (m_curItemList[i].GetSkill().Key == BattleStateMechine.Instance.CurrentZhaoshi.Key) 
-                {
-                    m_selectItem = m_curItemList[i];
-                    break;
-                }
-            }
-            m_chooseBtn = (m_selectItem == null);//Îª¿Õ ËµÃ÷µ±Ç°Ñ¡ÔñµÄÊÇÌØÊâ¼¼ÄÜ ±ÈÈçÓÃ¶¾
-            if (m_chooseBtn && m_curItemList.Count > 0)//Èç¹ûÊÇÑ¡ÔñµÄ ÌØÊâ¼¼ÄÜ ÄÇÃ´»¹ÊÇÒª¸øÄ¬ÈÏÑ¡ÔñÒ»¸ö¼¼ÄÜ
-                m_selectItem = m_curItemList[0];
-        }
-        UpdateSelect();
-    }
+		return null;
+	}
 
-    void UpdateSelect() 
-    {
-        LeftActions_RectTransform.gameObject.SetActive(!m_chooseBtn);
-        Skills_RectTransform.gameObject.SetActive(!m_chooseBtn);
-        if (m_chooseBtn)
-            return;
-        if(m_selectItem)
-            m_selectItem.SetSelect(true);
-    }
+	protected Image getSkillCastButtonImage(Button button)
+	{
+		Transform trans = button.gameObject.transform;
+		for (var i = 0; i < trans.childCount; i++)
+		{
+			var image = trans.GetChild(i).GetComponent<Image>();
+			if (image != null && image.name == "ActionIcon")
+				return image;
+		}
 
-    void OnItemClick(SkillUIItem item) 
-    {
-        if (m_selectItem == item)
-            return;
-        if (m_selectItem != null)
-            m_selectItem.SetSelect(false);
-        m_selectItem = item;
-        m_chooseBtn = false;
-        //×´Ì¬»ú°ó¶¨ÐÂµÄÕÐÊ½ Õ½³¡ÖÐµÄ±íÏÖ ×´Ì¬»ú»á´¦Àí
-        BattleStateMechine.Instance.BindSkill(m_selectItem.GetSkill());
+		return null;
+	}
 
-        m_currentRole.SwitchAnimationToSkill(m_selectItem.GetSkill().Data);
-        CheckNeedChangeState();
-    }
+	protected override void OnShowPanel(params object[] allParams)
+	{
+		base.OnShowPanel(allParams);
+		m_currentRole = allParams[0] as RoleInstance;
+		if (m_currentRole == null)
+			return;
 
-    void OnCancelClick() 
-    {
-        if (m_currentState == BattleManager.BattleViewStates.SelectMove)
-        {
-            //Ë¢ÐÂÕâ¸ö×´Ì¬
-            BattleStateMechine.Instance.SwitchState(BattleManager.BattleViewStates.SelectMove);
-            Debug.Log("cancel");
-        }
-        else if (m_currentState == BattleManager.BattleViewStates.SelectSkill) 
-        {
-            if (m_chooseBtn)
-            {
-                m_chooseBtn = false;
-                //ÖØÐÂ°ó¶¨¼¼ÄÜ
-                BattleStateMechine.Instance.BindSkill(m_selectItem.GetSkill());
-                UpdateSelect();
-                Debug.Log("cm");
-            }
-            else
-            {
-                //Çå¿Õ¼¼ÄÜ
-                BattleStateMechine.Instance.BindSkill(null);
-                BattleStateMechine.Instance.IsCanceling = true;
-                BattleStateMechine.Instance.SwitchState(BattleManager.BattleViewStates.SelectMove);
-                BattleStateMechine.Instance.ResetRolePos();//让角色回到原来位置
-            }
-        }
-    }
-    //²»ÐèÒªÒÆ¶¯°´Å¥ÁË Ä¬ÈÏ¾ÍÊÇÒÆ¶¯×´Ì¬
-    void OnMoveClick() 
-    {
+		moveRange = (List<BattleBlockVector>)allParams[1];
+		isSelectMove = (bool)allParams[2];
+		callback = (Action<BattleLoop.ManualResult>)allParams[3];
+		battleModel = BattleManager.Instance.GetModel();
 
-    }
+		BattleboxHelper.Instance.analogLeftMovedToBlock += onBattleBlockMove;
+		BattleboxHelper.Instance.blockConfirmed += gamepadBlockConfirmed;
 
-    void CheckNeedChangeState() 
-    {
-        if (m_currentState == BattleManager.BattleViewStates.SelectMove)
-        {
-            BattleStateMechine.Instance.SwitchState(BattleManager.BattleViewStates.SelectSkill);
-        }
-        else 
-        {
-            UpdateSelect();
-        }
-    }
+		//Cancel_Button.gameObject.SetActive(false);
+		SetActionBtnState();
+		RefreshSkill();
+		//SetPanelState();
 
-    void OnUsePoisonClick() 
-    {
-        var zhaoshi = new PoisonZhaoshiInstance(m_currentRole.UsePoison);
-        m_chooseBtn = true;
-        BattleStateMechine.Instance.BindSkill(zhaoshi);
-        CheckNeedChangeState();
-    }
+		if (isSelectMove)
+		{
+			_lastHitRangeOverBlock = null;
+			BattleboxHelper.Instance.ShowBlocks(m_currentRole, moveRange, BattleBlockType.MoveZone, false);
+		}
+		else
+		{
+			if (m_curItemList.Count > 0)
+			{
+				//fix issue of mp deplition causes skillCast not showing, and previously recorded current index
+				//out of range.
+				if (m_currentRole.CurrentSkill >= m_curItemList.Count)
+					m_currentRole.CurrentSkill = 0;
 
-    void OnDepoisonClick() 
-    {
-        var zhaoshi = new DePoisonZhaoshiInstance(m_currentRole.DePoison);
-        m_chooseBtn = true;
-        BattleStateMechine.Instance.BindSkill(zhaoshi);
-        CheckNeedChangeState();
-    }
+				var skillCast = m_curItemList[m_currentRole.CurrentSkill].GetSkill();
+				ShowAttackRangeSelector(skillCast);
+			}
+		}
 
-    void OnHealClick() 
-    {
-        var zhaoshi = new HealZhaoshiInstance(m_currentRole.Heal);
-        m_chooseBtn = true;
-        BattleStateMechine.Instance.BindSkill(zhaoshi);
-        CheckNeedChangeState();
-    }
+		changeCurrentSelection(-1);
+	}
 
-    void OnUseItemClick() 
-    {
-        Func<Jyx2Item, bool> filter = (item) => {
-            //Ò©Îï»ò°µÆ÷
-            return item.ItemType == 3 || item.ItemType == 4;
-        };
-        Jyx2_UIManager.Instance.ShowUI("BagUIPanel", GameRuntimeData.Instance.Items, new Action<int>((itemId) =>
-        {
+	private void onBattleBlockMove(BattleBlockData block)
+	{
+		//hide the hilite
+		changeCurrentSelection(-1);
+		//hide the skillCast selection
+		changeCurrentSkillCastSelection(-1);
 
-            if (itemId == -1)
-                return;
+		showSkillCastHitRange(block);
+	}
 
-            var item = ConfigTable.Get<Jyx2Item>(itemId);
-            //Ò©Æ·
-            if (item.ItemType == 3)
-            {
-                if (m_currentRole.CanUseItem(itemId))
-                {
-                    BattleStateMechine.Instance.BindItem(item);
-                    BattleStateMechine.Instance.SwitchState(BattleManager.BattleViewStates.UseItem);
-                }
-            }
-            //°µÆ÷
-            else if (item.ItemType == 4)
-            {
-                var zhaoshi = new AnqiZhaoshiInstance(m_currentRole.Anqi, item);
-                m_chooseBtn = true;
-                BattleStateMechine.Instance.BindSkill(zhaoshi);
-                CheckNeedChangeState();
-            }
+	private void gamepadBlockConfirmed(BattleBlockData obj)
+	{
+		showSkillCastHitRange();
+		blockConfirm(obj, false);
+	}
 
-        }), filter);
-    }
 
-    void OnWaitClick() 
-    {
-        BattleManager.Instance.GetModel().ActWait(m_currentRole);
-        BattleStateMechine.Instance.ResetRolePos();
-        BattleStateMechine.Instance.SwitchState(BattleManager.BattleViewStates.WaitingForNextActiveBattleRole);
-    }
+	//显示攻击范围选择指示器
+	void ShowAttackRangeSelector(SkillCastInstance skillCast)
+	{
+		currentSkill = skillCast;
 
-    void OnRestClick() 
-    {
-        m_currentRole.OnRest();
-        BattleStateMechine.Instance.SwitchState(BattleManager.BattleViewStates.WaitingForNextActiveBattleRole);
-    }
+		isSelectMove = false;
+
+		BattleboxHelper.Instance.HideAllBlocks();
+		var blockList = BattleManager.Instance.GetSkillUseRange(m_currentRole, skillCast);
+
+		//prevent reselecting causing not showing hit range
+		_lastHitRangeOverBlock = null;
+		BattleboxHelper.Instance.ShowBlocks(m_currentRole, blockList, BattleBlockType.AttackZone, true);
+	}
+
+	private BattleBlockData _lastHitRangeOverBlock = null;
+	private bool rightDpadPressed;
+	private bool leftDpadPressed;
+
+	private int cur_skillCast = 0;
+
+	private void changeCurrentSkillCastSelection(int number)
+	{
+		if (skillList.Count == 0)
+			return;
+
+		cur_skillCast = number;
+
+		if (number > -1)
+		{
+			changeCurrentSelection(-1);
+			BattleboxHelper.Instance.AnalogMoved = false;
+		}
+
+		var curBtnKey = number < 0 || number > skillList.Count ?
+			null :
+			skillList.ElementAt(number).Key;
+
+		foreach (var btn in skillList)
+		{
+			bool isInvokedButton = btn.Key == curBtnKey;
+			var text = getButtonText(btn.Key);
+			if (text != null)
+			{
+				text.color = isInvokedButton ?
+					base.selectedButtonColor() :
+					base.normalButtonColor();
+				text.fontStyle = isInvokedButton ?
+					FontStyle.Bold :
+					FontStyle.Normal;
+			}
+
+			var action = getSkillCastButtonImage(btn.Key);
+			if (action != null)
+			{
+				action.gameObject.SetActive(isInvokedButton);
+			}
+		}
+	}
+
+	protected override void changeCurrentSelection(int num)
+	{
+		if (num > -1)
+		{
+			changeCurrentSkillCastSelection(-1);
+			BattleboxHelper.Instance.AnalogMoved = false;
+		}
+
+		base.changeCurrentSelection(num);
+	}
+
+	protected override bool resetCurrentSelectionOnShow => false;
+
+	protected override void OnDirectionalRight()
+	{
+		if (skillList.Count == 0)
+			return;
+
+		changeCurrentSelection(-1);
+
+		var nextSkillCast = (cur_skillCast >= skillList.Count - 1) ?
+			0 :
+			cur_skillCast + 1;
+
+		changeCurrentSkillCastSelection(nextSkillCast);
+	}
+
+	protected override void OnDirectionalUp()
+	{
+		base.OnDirectionalUp();
+	}
+
+	protected override void OnDirectionalDown()
+	{
+		base.OnDirectionalDown();
+	}
+
+	protected override void OnDirectionalLeft()
+	{
+		if (skillList.Count == 0)
+			return;
+
+		changeCurrentSelection(-1);
+
+		var nextSkillCast = (cur_skillCast <= 0) ?
+			cur_skillCast = skillList.Count - 1 :
+			cur_skillCast - 1;
+
+		changeCurrentSkillCastSelection(nextSkillCast);
+	}
+
+	public override void Update()
+	{
+		base.Update();
+
+		//显示当前攻击范围
+		showSkillCastHitRange();
+
+		//寻找玩家点击的格子
+		var block = InputManager.Instance.GetMouseUpBattleBlock();
+
+		//没有选择格子
+		if (block == null) return;
+
+		//格子隐藏（原则上应该不会出现）
+		if (block.gameObject.activeSelf == false) return;
+
+		//选择移动，但位置站人了
+		if (isSelectMove && battleModel.BlockHasRole(block.BattlePos.X, block.BattlePos.Y)) return;
+
+
+		//以下进行回调
+
+		//移动
+		blockConfirm(block, true);
+	}
+
+	private void showSkillCastHitRange(BattleBlockData block = null)
+	{
+		if (!isSelectMove)
+		{
+			var overBlock = block ?? InputManager.Instance.GetMouseOverBattleBlock();
+			if (overBlock != null && overBlock != _lastHitRangeOverBlock)
+			{
+				_lastHitRangeOverBlock = overBlock;
+				var range = BattleManager.Instance.GetSkillCoverBlocks(currentSkill, overBlock.BattlePos, m_currentRole.Pos);
+				BattleboxHelper.Instance.ShowRangeBlocks(range);
+			}
+		}
+	}
+
+	protected override void handleGamepadButtons()
+	{
+		base.handleGamepadButtons();
+
+		if (gameObject.activeSelf)
+		{
+			if (GamepadHelper.IsCancel())
+				//取消
+				OnCancelClick();
+			else if (GamepadHelper.IsJump())
+				OnHealClick();
+			else if (GamepadHelper.IsTabRight())
+				OnRestClick();
+			else if (GamepadHelper.IsAction()) // x/square button invoke skillCast 
+			{
+				if (m_curItemList.Count == 0)
+					return;
+
+				if (cur_skillCast < 0 || cur_skillCast >= m_curItemList.Count)
+				{
+					cur_skillCast = 0;
+					changeCurrentSkillCastSelection(cur_skillCast);
+				}
+
+				onSkillCastStart(m_curItemList[cur_skillCast], cur_skillCast);
+			}
+		}
+	}
+
+	protected override void buttonClickAt(int position)
+	{
+		if (!BattleboxHelper.Instance.AnalogMoved && cur_skillCast == -1)
+			base.buttonClickAt(position);
+	}
+
+	private void blockConfirm(BattleBlockData block, bool isMouseClick)
+	{
+		if (!BattleboxHelper.Instance.AnalogMoved && !isMouseClick)
+			return;
+
+		changeCurrentSelection(-1);
+
+		if (isSelectMove)
+		{
+			TryCallback(new BattleLoop.ManualResult() { movePos = block.BattlePos }); //移动
+		}
+		else  //选择攻击
+		{
+			AIResult rst = new AIResult();
+			rst.AttackX = block.BattlePos.X;
+			rst.AttackY = block.BattlePos.Y;
+
+			rst.SkillCast = currentSkill;
+
+			TryCallback(new BattleLoop.ManualResult() { aiResult = rst });
+		}
+	}
+
+	void TryCallback(BattleLoop.ManualResult ret)
+	{
+		BattleboxHelper.Instance.HideAllBlocks(true);
+		callback?.Invoke(ret);
+	}
+
+	//点击了自动
+	public void OnAutoClicked()
+	{
+		TryCallback(new BattleLoop.ManualResult() { isAuto = true });
+	}
+
+	protected override void OnHidePanel()
+	{
+		base.OnHidePanel();
+		m_currentRole = null;
+		m_curItemList.Clear();
+
+		//隐藏格子
+		BattleboxHelper.Instance?.HideAllBlocks();
+		skillList.Clear();
+	}
+
+	void SetActionBtnState()
+	{
+		bool canPoison = m_currentRole.UsePoison >= 20 && m_currentRole.Tili >= 10;
+		UsePoison_Button.gameObject.SetActive(canPoison);
+		bool canDepoison = m_currentRole.DePoison >= 20 && m_currentRole.Tili >= 10;
+		Depoison_Button.gameObject.SetActive(canDepoison);
+		bool canHeal = m_currentRole.Heal >= 20 && m_currentRole.Tili >= 50;
+		Heal_Button.gameObject.SetActive(canHeal);
+
+		bool lastRole = BattleManager.Instance.GetModel().IsLastRole(m_currentRole);
+		Wait_Button.gameObject.SetActive(!lastRole);
+	}
+
+	void RefreshSkill()
+	{
+		m_curItemList.Clear();
+		var skillCasts = m_currentRole.GetSkills(true).ToList();
+		childMgr.RefreshChildCount(skillCasts.Count);
+		List<Transform> childTransList = childMgr.GetUsingTransList();
+		skillList.Clear();
+
+		for (int i = 0; i < skillCasts.Count; i++)
+		{
+			int index = i;
+			SkillUIItem item = GameUtil.GetOrAddComponent<SkillUIItem>(childTransList[i]);
+			item.RefreshSkill(skillCasts[i]);
+			item.SetSelect(i == m_currentRole.CurrentSkill);
+
+			Button btn = item.GetComponent<Button>();
+			bindSkillCast(btn, () => { onSkillCastStart(item, index); });
+			m_curItemList.Add(item);
+		}
+
+		if (m_currentRole.CurrentSkill > -1 && m_currentRole.CurrentSkill < skillCasts.Count)
+		{
+			changeCurrentSkillCastSelection(m_currentRole.CurrentSkill);
+		}
+	}
+
+	void bindSkillCast(Button btn, Action callback)
+	{
+		BindListener(btn, callback, false);
+		skillList[btn] = callback;
+	}
+
+
+
+	void onSkillCastStart(SkillUIItem item, int index)
+	{
+		// clear current skillCast selection selected color only
+		if (index > -1)
+			changeCurrentSelection(-1);
+
+		m_currentRole.CurrentSkill = index;
+
+		m_curItemList.ForEach(t =>
+		{
+			t.SetSelect(t == item);
+		});
+
+		m_currentRole.SwitchAnimationToSkill(item.GetSkill().Data);
+		ShowAttackRangeSelector(item.GetSkill());
+	}
+
+	void OnCancelClick()
+	{
+		TryCallback(new BattleLoop.ManualResult() { isRevert = true });
+	}
+
+	void OnMoveClick()
+	{
+
+	}
+
+	void OnUsePoisonClick()
+	{
+		var skillCast = new PoisonSkillCastInstance(m_currentRole.UsePoison);
+		ShowAttackRangeSelector(skillCast);
+	}
+
+	void OnDepoisonClick()
+	{
+		var skillCast = new DePoisonSkillCastInstance(m_currentRole.DePoison);
+		ShowAttackRangeSelector(skillCast);
+	}
+
+	void OnHealClick()
+	{
+		if (!Heal_Button.gameObject.activeSelf)
+			return;
+
+		var skillCast = new HealSkillCastInstance(m_currentRole.Heal);
+		ShowAttackRangeSelector(skillCast);
+	}
+
+	async void OnUseItemClick()
+	{
+		bool Filter(Jyx2ConfigItem item) => (int)item.ItemType == 3 || (int)item.ItemType == 4;
+
+		await Jyx2_UIManager.Instance.ShowUIAsync(nameof(BagUIPanel), GameRuntimeData.Instance.Items, new Action<int>((itemId) =>
+		{
+
+			if (itemId == -1)
+				return;
+
+			var item = GameConfigDatabase.Instance.Get<Jyx2ConfigItem>(itemId);
+			if ((int)item.ItemType == 3) //使用道具逻辑
+			{
+				if (m_currentRole.CanUseItem(itemId))
+				{
+					TryCallback(new BattleLoop.ManualResult() { aiResult = new AIResult() { Item = item } });
+				}
+			}
+			else if ((int)item.ItemType == 4) //使用暗器逻辑
+			{
+				var skillCast = new AnqiSkillCastInstance(m_currentRole.Anqi, item);
+				ShowAttackRangeSelector(skillCast);
+			}
+
+		}), (Func<Jyx2ConfigItem, bool>)Filter);
+	}
+
+	void OnWaitClick()
+	{
+		TryCallback(new BattleLoop.ManualResult() { isWait = true });
+	}
+
+	void OnRestClick()
+	{
+		TryCallback(new BattleLoop.ManualResult() { aiResult = new AIResult() { IsRest = true } });
+	}
 }

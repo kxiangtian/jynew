@@ -1,3 +1,12 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -85,7 +94,8 @@ namespace Jyx2.Middleware
             {
                 var go = transform.GetChild(i).gameObject;
                 go.SetActive(false);
-                LeanPool.Despawn(go);
+                Destroy(go);
+                //LeanPool.Despawn(go);
             }
             transform.DetachChildren();
         }
@@ -178,10 +188,10 @@ namespace Jyx2.Middleware
             {
                 if (p.enableEmission)
                 {
-                    if (p.loop)
+                    /*if (p.loop)
                     {
                         return -1f;
-                    }
+                    }*/
                     float dunration = 0f;
                     if (p.emissionRate <= 0)
                     {

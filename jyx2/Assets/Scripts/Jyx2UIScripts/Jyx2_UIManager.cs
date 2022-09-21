@@ -1,6 +1,22 @@
-using HanSquirrel.ResourceManager;
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using Cysharp.Threading.Tasks;
+using i18n.TranslatorDef;
+using Jyx2;
+using Jyx2.MOD;
+using Jyx2.ResourceManagement;
 using UnityEngine;
 
 public enum UILayer 
@@ -49,9 +65,66 @@ public class Jyx2_UIManager : MonoBehaviour
         m_topParent = transform.Find("Top");
     }
 
-    public void GameStart() 
+    public bool IsTopVisibleUI(Jyx2_UIBase ui)
+	{
+        if (!ui.gameObject.activeSelf)
+            return false;
+
+        if (ui.Layer == UILayer.MainUI)
+		{
+			//make sure no normal and popup ui on top
+			return noShowingNormalUi() &&
+				(noInterferingPopupUI());
+		}
+		else if (ui.Layer == UILayer.NormalUI)
+		{
+            Jyx2_UIBase currentUi = m_normalUIStack.Count > 0 ? m_normalUIStack.Peek() : null;
+            if (currentUi == null)
+                return true;
+            
+			return (ui == currentUi || ui.transform.IsChildOf(currentUi.transform)) && noInterferingPopupUI();
+		}
+        else if (ui.Layer == UILayer.PopupUI)
+		{
+            return (m_PopUIStack.Count > 0 ? m_PopUIStack.Peek() : null) == ui;
+		}
+        else if (ui.Layer == UILayer.Top)
+		{
+            return true;
+		}
+
+        return false;
+	}
+
+	private bool noShowingNormalUi()
+	{
+        return !m_normalUIStack
+            .Any(ui => ui.gameObject.activeSelf);
+	}
+
+	private bool noInterferingPopupUI()
+	{
+        //common tips panel has no interaction, doesn't count towards active uis
+        return !m_normalUIStack
+            .Any(ui => ui.gameObject.activeSelf) || (m_PopUIStack.All(p => p is CommonTipsUIPanel));
+	}
+
+	public async void GameStart()
     {
-        Jyx2_UIManager.Instance.ShowUI("GameMainMenu");
+        // await UniTask.WaitForEndOfFrame();
+        await RuntimeEnvSetup.Setup();
+        
+        
+        //TODO: 20220723 CG: 待调整Loading出现的逻辑，因为ResLoader的初始化很慢。但这里目前有前后依赖关系，必须在ResLoader初始化之后
+        await ShowUIAsync(nameof(GameMainMenu));
+
+        string info = string.Format("<b>版本：{0} 模组：{1}</b>".GetContent(nameof(Jyx2_UIManager)),
+            Application.version,
+            RuntimeEnvSetup.CurrentModConfig.ModName);
+        
+        await ShowUIAsync(nameof(GameInfoPanel), info);
+        
+        GraphicSetting.GlobalSetting.Execute();
     }
 
     Transform GetUIParent(UILayer layer) 
@@ -72,7 +145,8 @@ public class Jyx2_UIManager : MonoBehaviour
     }
 
     Dictionary<string, object[]> _loadingUIParams = new Dictionary<string, object[]>();
-    public void ShowUI(string uiName,params object[] allParams) 
+    
+    public async UniTask ShowUIAsync(string uiName, params object[] allParams)
     {
         Jyx2_UIBase uibase;
         if (m_uiDic.ContainsKey(uiName))
@@ -93,7 +167,11 @@ public class Jyx2_UIManager : MonoBehaviour
 
             _loadingUIParams[uiName] = allParams;
             string uiPath = string.Format(GameConst.UI_PREFAB_PATH, uiName);
-            Jyx2ResourceHelper.SpawnPrefab(uiPath, OnUILoaded);
+
+            var prefab = await ResLoader.LoadAsset<GameObject>(uiPath);
+            var go = Instantiate(prefab);
+            
+            OnUILoaded(go);
         }
     }
 
@@ -108,6 +186,9 @@ public class Jyx2_UIManager : MonoBehaviour
         Transform parent = GetUIParent(uibase.Layer);
         go.transform.SetParent(parent);
 
+		//听取ui的 OnVisibilityToggle event
+		uibase.VisibilityToggled += Uibase_OnVisibilityToggle;
+
         uibase.Init();
         m_uiDic[uiName] = uibase;
         if (uibase.IsOnly)//如果这个层唯一存在 那么先关闭其他
@@ -118,31 +199,31 @@ public class Jyx2_UIManager : MonoBehaviour
         _loadingUIParams.Remove(uiName);
     }
 
-    //显示一个UI的子ui
-    public void ShowSubUI(Transform parent,string uiName, params object[] allParams) 
-    {
-        
-    }
+	private void Uibase_OnVisibilityToggle(Jyx2_UIBase ui, bool obj)
+	{
+		UIVisibilityToggled?.Invoke(ui, obj);
+	}
 
-    //显示主界面 LoadingPanel中加载完场景调用 移到这里来 方便修改
-    public void ShowMainUI()
+    public event Action<Jyx2_UIBase, bool> UIVisibilityToggled;
+
+	//显示主界面 LoadingPanel中加载完场景调用 移到这里来 方便修改
+	public async UniTask ShowMainUI()
     {
-        var levelMaster = LevelMaster.Instance;
-        var map = levelMaster.GetCurrentGameMap();
-        if (map == null)
+        var map = LevelMaster.GetCurrentGameMap();
+        /*if (map == null)
         {
             //this.HideUI("MainUIPanel");
-            this.ShowUI("BattleMainUIPanel",BattleMainUIState.None);
+            this.ShowUI(nameof(BattleMainUIPanel),BattleMainUIState.None);
             Debug.Log("当前地图没有地图数据");
             return;
-        }
-        if (map.Tags.Contains("BATTLE"))
+        }*/
+        if (map != null && map.Tags.Contains("BATTLE"))
         {
-            this.ShowUI("BattleMainUIPanel", BattleMainUIState.None);
+            await ShowUIAsync(nameof(BattleMainUIPanel), BattleMainUIState.None);
             return;
         }
         else
-            this.ShowUI("MainUIPanel");
+            await ShowUIAsync(nameof(MainUIPanel));
     }
 
     void PushUI(Jyx2_UIBase uibase) 

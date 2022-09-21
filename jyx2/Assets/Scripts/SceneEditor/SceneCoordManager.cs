@@ -1,11 +1,19 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 #if UNITY_EDITOR
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using ch.sycoforge.Decal;
+using Cysharp.Threading.Tasks;
 using Jyx2;
-using ServiceStack;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
@@ -33,11 +41,6 @@ public class SceneCoordManager : MonoBehaviour {
     {
         InitSceneSize();
     }
-	
-	// Update is called once per frame
-	void Update () {
-
-	}
     
     //存储逻辑数据
     List<BattleBlockData> battleBlocks = new List<BattleBlockData>();
@@ -106,17 +109,15 @@ public class SceneCoordManager : MonoBehaviour {
         }
     }
 
-    public void TestDrawBlocks()
+    public async UniTask TestDrawBlocks()
     {
-        LoadCoordDataSet(() =>
-        {
-            var sceneCamera = SceneView.lastActiveSceneView.camera;
-            var pixelPos = new Vector2(sceneCamera.scaledPixelWidth * 0.5f, sceneCamera.scaledPixelHeight * 0.5f);
+        await LoadCoordDataSet();
+        var sceneCamera = SceneView.lastActiveSceneView.camera;
+        var pixelPos = new Vector2(sceneCamera.scaledPixelWidth * 0.5f, sceneCamera.scaledPixelHeight * 0.5f);
 
-            var v3 = new Vector3(pixelPos.x, pixelPos.y, 0.0f);
-            var ray = sceneCamera.ScreenPointToRay(v3);
-            DrawBlocks(ray);
-        });
+        var v3 = new Vector3(pixelPos.x, pixelPos.y, 0.0f);
+        var ray = sceneCamera.ScreenPointToRay(v3);
+        DrawBlocks(ray);
     }
 
     //根据导航判断格子是否有效
@@ -143,30 +144,25 @@ public class SceneCoordManager : MonoBehaviour {
         return false;
     }
 
-    public void LoadCoordDataSet(Action callback)
+    public async UniTask LoadCoordDataSet()
     {
         //if (m_CoordDataSet != null) return;
         InitSceneSize();
         var sceneName = SceneManager.GetActiveScene().name;
-        SceneCoordDataSet.CreateBySceneName(sceneName, (r) =>
+        m_CoordDataSet = await SceneCoordDataSet.CreateBySceneName(sceneName);
+        if (m_CoordDataSet == null)
         {
-            m_CoordDataSet = r;
-            if (m_CoordDataSet == null)
-            {
-                RecreateCoordDataSet();
-            }
-            Debug.Log($"载入结束：{m_CoordDataSet.GetCount()}个格子中，一共有多少格子有效：{m_CoordDataSet.GetValueSum()}");
+            RecreateCoordDataSet();
+        }
+        Debug.Log($"载入结束：{m_CoordDataSet.GetCount()}个格子中，一共有多少格子有效：{m_CoordDataSet.GetValueSum()}");
 
-            if (!Mathf.Approximately(m_SceneLength, m_CoordDataSet.TerrainLength) ||
-                !Mathf.Approximately(m_SceneWidth, m_CoordDataSet.TerrainWidth) ||
-                !Mathf.Approximately(m_TerrainBounds.min.x, m_CoordDataSet.MinX) ||
-                !Mathf.Approximately(m_TerrainBounds.min.z, m_CoordDataSet.MinY))
-            {
-                Debug.LogError($"载入的格子数据和当前scene的terrain尺寸不匹配，请重新生成格子数据");
-            }
-
-            callback?.Invoke();
-        });
+        if (!Mathf.Approximately(m_SceneLength, m_CoordDataSet.TerrainLength) ||
+            !Mathf.Approximately(m_SceneWidth, m_CoordDataSet.TerrainWidth) ||
+            !Mathf.Approximately(m_TerrainBounds.min.x, m_CoordDataSet.MinX) ||
+            !Mathf.Approximately(m_TerrainBounds.min.z, m_CoordDataSet.MinY))
+        {
+            Debug.LogError($"载入的格子数据和当前scene的terrain尺寸不匹配，请重新生成格子数据");
+        }
     }
 
     public void SaveCoordDataSet()

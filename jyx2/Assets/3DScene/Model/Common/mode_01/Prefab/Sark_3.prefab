@@ -311,7 +311,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   clip: {fileID: 1827226128182048838, guid: 382c5c86c29844b43adb84b79426348a, type: 3}
-  ness: 0
 --- !u!208 &5166338835822042026
 NavMeshObstacle:
   m_ObjectHideFlags: 0

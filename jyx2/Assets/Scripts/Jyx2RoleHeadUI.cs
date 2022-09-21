@@ -1,4 +1,13 @@
-using HanSquirrel.ResourceManager;
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
 using Jyx2;
 using System;
 using System.Collections;
@@ -11,7 +20,7 @@ public class Jyx2RoleHeadUI : MonoBehaviour
 
     public static Jyx2RoleHeadUI Create(RoleInstance role, bool forceChecked, Action clickCallback)
     {
-        var prefab = Jyx2ResourceHelper.GetCachedPrefab("Assets/Prefabs/Jyx2RoleHeadUI.prefab");
+        var prefab = Jyx2ResourceHelper.GetCachedPrefab("Jyx2RoleHeadUI");
 
         var obj = Instantiate(prefab);
         var itemUI = obj.GetComponent<Jyx2RoleHeadUI>();
@@ -28,8 +37,8 @@ public class Jyx2RoleHeadUI : MonoBehaviour
         _role = role;
         _clickCallback = clickCallback;
 
-        Jyx2ResourceHelper.GetRoleHeadSprite(role, headImage);
-
+        headImage.LoadAsyncForget(role.Data.GetPic());
+        
         IsChecked = forceChecked;
     }
 

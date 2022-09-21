@@ -1,31 +1,45 @@
-using System;
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices.WindowsRuntime;
-using GLib;
-using HanSquirrel.ResourceManager;
-using HSFrameWork.ConfigTable;
+using System.Linq;
 using Sirenix.OdinInspector;
-using Sirenix.Utilities;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.SceneManagement;
 #endif
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using Debug = UnityEngine.Debug;
+using Cysharp.Threading.Tasks;
+using Jyx2.ResourceManagement;
 
 namespace Jyx2
 {
-    [CreateAssetMenu(fileName = "NewModelAsset", menuName = "Model Asset")]
+    [CreateAssetMenu(fileName = "NewModelAsset", menuName = "金庸重制版/角色模型配置文件Model Asset")]
     public class ModelAsset : ScriptableObject
     {
-        [BoxGroup("数据", false)]
+        public static IList<ModelAsset> All;
+    
+        public static ModelAsset Get(string roleName)
+        {
+            return All.Single(r => r.name == roleName);
+        }
+
+        [BoxGroup("数据")] [Header("模型")]
         [InlineEditor(InlineEditorModes.LargePreview, Expanded = true)]
-        [OnValueChanged("AtuoBindModelData")]
+        [OnValueChanged("AutoBindModelData")]
         public GameObject m_View;
+
+        public async UniTask<GameObject> GetView()
+        {
+            return m_View;
+        }
 
         [BoxGroup("数据")] [Header("剑")] [SerializeReference]
         public SwordPart m_SwordWeapon;
@@ -44,12 +58,10 @@ namespace Jyx2
 
         public enum WeaponPartType
         {
+            [LabelText("空手")] Fist = 0,
             [LabelText("剑")] Sword = 1,
-
             [LabelText("刀")] Knife = 2,
-
             [LabelText("长柄")] Spear = 3,
-
             [LabelText("其他")] Other = 4,
         }
 
@@ -64,14 +76,14 @@ namespace Jyx2
                 OpenSceneMode.Additive);
 
             var gameObjects = scene.GetRootGameObjects();
-            gameObjects.ForEachG(delegate(GameObject o)
+            foreach (var o in gameObjects)
             {
                 if (o.name == m_View.name)
                 {
                     DestroyImmediate(o);
                 }
-            });
-
+            }
+            
             viewWithWeapon = (GameObject) PrefabUtility.InstantiatePrefab(m_View, scene);
             viewWithWeapon.transform.SetAsLastSibling();
             PrefabUtility.UnpackPrefabInstance(viewWithWeapon, PrefabUnpackMode.Completely,
@@ -161,7 +173,7 @@ namespace Jyx2
         /// <summary>
         /// 自动绑定模型配置
         /// </summary>
-        public void AtuoBindModelData()
+        public void AutoBindModelData()
         {
             if (m_View == null) return;
             var animator = m_View.GetComponent<Animator>();
@@ -185,23 +197,26 @@ namespace Jyx2
             {
                 if (bone.humanName == "RightHand")
                 {
-                    m_SwordWeapon.m_BindBone = bone.boneName;
-                    m_KnifeWeapon.m_BindBone = bone.boneName;
-                    m_SpearWeapon.m_BindBone = bone.boneName;
+                    if(m_SwordWeapon.m_BindBone==null)
+                        m_SwordWeapon.m_BindBone = bone.boneName;
+                    if(m_KnifeWeapon.m_BindBone==null)
+                        m_KnifeWeapon.m_BindBone = bone.boneName;
+                    if(m_SpearWeapon.m_BindBone==null)
+                        m_SpearWeapon.m_BindBone = bone.boneName;
                     break;
                 }
             }
 
 #if UNITY_EDITOR
-            EditorUtility.SetDirty(this);
-            AssetDatabase.SaveAssets();
+            //EditorUtility.SetDirty(this);
+            //AssetDatabase.SaveAssets();
 #endif
         }
 
 #if UNITY_EDITOR
         private void OnEnable()
         {
-            AtuoBindModelData();
+            AutoBindModelData();
         }
 #endif
     }

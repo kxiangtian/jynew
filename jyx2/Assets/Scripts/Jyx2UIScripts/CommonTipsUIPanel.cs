@@ -1,8 +1,21 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
+using System;
 using DG.Tweening;
-using HanSquirrel.ResourceManager;
-using HSFrameWork.Common;
+
+
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -34,17 +47,18 @@ public partial class CommonTipsUIPanel:Jyx2_UIBase
         switch (currentType) 
         {
             case TipsType.Common:
-                ShowInfo(text, duration);
+                ShowInfo(text, duration).Forget();
                 break;
             case TipsType.MiddleTop:
-                ShowMiddleInfo(text);
+                ShowMiddleInfo(text, duration).Forget();
                 break;
         }
     }
 
-    void ShowInfo(string msg, float duration) 
+    async UniTaskVoid ShowInfo(string msg, float duration) 
     {
-        var popinfoItem = Jyx2ResourceHelper.CreatePrefabInstance("Assets/Prefabs/Popinfo.prefab");
+        //初始化
+        var popinfoItem = Jyx2ResourceHelper.CreatePrefabInstance("Popinfo");
         popinfoItem.transform.SetParent(PopInfoParent_RectTransform, false);
         popinfoItem.GetComponentInChildren<Text>().text = msg;
         Text mainText = popinfoItem.GetComponentInChildren<Text>();
@@ -54,25 +68,35 @@ public partial class CommonTipsUIPanel:Jyx2_UIBase
 
         if (duration > POPINFO_FADEOUT_TIME)
         {
-            HSUtilsEx.CallWithDelay(this, () =>
-            {
-                mainText.DOFade(0, POPINFO_FADEOUT_TIME);
-                mainImg.DOFade(0, POPINFO_FADEOUT_TIME);
-            }, duration - POPINFO_FADEOUT_TIME);
+            //FADE相关逻辑
+            await Task.Delay(TimeSpan.FromSeconds(POPINFO_FADEOUT_TIME));
+            mainText.DOFade(0, POPINFO_FADEOUT_TIME);
+            mainImg.DOFade(0, POPINFO_FADEOUT_TIME);
+            await Task.Delay(TimeSpan.FromSeconds(duration - POPINFO_FADEOUT_TIME));
         }
-
-        HSUtilsEx.CallWithDelay(this, () => {
-            Jyx2ResourceHelper.ReleasePrefabInstance(popinfoItem.gameObject);
-        }, duration);
+        else
+        {
+            await Task.Delay(TimeSpan.FromSeconds(duration));
+        }
+        
+        Jyx2ResourceHelper.ReleasePrefabInstance(popinfoItem);
     }
 
-    void ShowMiddleInfo(string msg) 
+    async UniTaskVoid ShowMiddleInfo(string msg, float duration = 2)
     {
-        MiddleTopMessageSuggest_RectTransform.gameObject.SetActive(true);
         MiddleText_Text.text = msg;
-        HSUtilsEx.CallWithDelay(this, ()=> 
-        {
-            MiddleTopMessageSuggest_RectTransform.gameObject.SetActive(false);
-        }, 1f);
+        
+        CanvasGroup cg = MiddleTopMessageSuggest_RectTransform.GetComponent<CanvasGroup>();
+        cg.alpha = 0;
+        
+        MiddleTopMessageSuggest_RectTransform.gameObject.SetActive(true);
+        MiddleTopMessageSuggest_RectTransform.DOScale(1.2f, duration / 2);
+        cg.DOFade(1, duration / 2);
+        await Task.Delay(TimeSpan.FromSeconds(duration/2));
+        
+        MiddleTopMessageSuggest_RectTransform.DOScale(1f, duration / 2);
+        cg.DOFade(0, duration / 2);
+        await Task.Delay(TimeSpan.FromSeconds(duration));
+        MiddleTopMessageSuggest_RectTransform.gameObject.SetActive(false);
     }
 }

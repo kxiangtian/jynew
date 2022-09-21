@@ -1,5 +1,14 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
 using Jyx2;
-using HSFrameWork.ConfigTable;
+
 using Jyx2;
 using System;
 using System.Collections;
@@ -42,28 +51,12 @@ public partial class BattleOKPanel:Jyx2_UIBase
 
     void ShowSkillDamage() 
     {
-        BattleZhaoshiInstance zhaoshi = BattleStateMechine.Instance.CurrentZhaoshi;
-        RoleInstance role = BattleStateMechine.Instance.CurrentRole;
-        if (zhaoshi == null || role == null)
-            return;
-        //int level_index = zhaoshi.Data.GetLevel();
-        //int damage = role.Attack + zhaoshi.Data.GetSkillLevelInfo(level_index).Attack / 3;
-        //if (role.Weapon >= 0)
-        //{
-        //    var i = ConfigTable.Get<Jyx2Item>(role.Weapon);
-        //    damage += i.Attack;
-        //}
-        //if (role.Armor >= 0)
-        //{
-        //    var i = ConfigTable.Get<Jyx2Item>(role.Armor);
-        //    damage += i.Attack;
-        //}
-        DamageText_Text.text = $"{zhaoshi.Data.Name} Lv.{zhaoshi.Data.GetLevel()}";
+        //NOTHING
     }
 
     void OnOKClick() 
     {
-        Jyx2_UIManager.Instance.HideUI("BattleOKPanel");
+        Jyx2_UIManager.Instance.HideUI(nameof(BattleOKPanel));
         if (okCallback != null) 
         {
             okCallback();
@@ -73,11 +66,19 @@ public partial class BattleOKPanel:Jyx2_UIBase
 
     void OnCancelClick() 
     {
-        Jyx2_UIManager.Instance.HideUI("BattleOKPanel");
+        Jyx2_UIManager.Instance.HideUI(nameof(BattleOKPanel));
         if (cancelCallback != null)
         {
             cancelCallback();
             cancelCallback = null;
         }
     }
+
+	protected override void handleGamepadButtons()
+	{
+		if (GamepadHelper.IsConfirm())
+            OnOKClick();
+        else if (GamepadHelper.IsCancel())
+            OnCancelClick();
+	}
 }

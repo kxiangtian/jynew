@@ -1,44 +1,107 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
+using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
+using Jyx2.MOD;
+using Jyx2.ResourceManagement;
 
 public class AudioManager
 {
     //JYX2
-    static public void PlayMusic(int id)
+    public static void PlayMusic(int id)
     {
-        PlayMusicAtPath("Assets/BuildSource/Musics/" + id + ".mp3");
+        Init();
+        if (id == -1)
+            return;
+        PlayMusicAtPath("Assets/BuildSource/Musics/" + id + ".mp3").Forget();
     }
 
-    static public void PlayMusicAtPath(string path)
+    public static void PlayMusic(AudioClip audioClip)
     {
-        if(_currentPlayMusic == path)
+        Init();
+        if (audioClip != bgmAudioSource.clip)
+        {
+            bgmAudioSource.clip = audioClip;
+            bgmAudioSource.Play();
+        }
+    }
+
+    public static async UniTask PlayMusicAtPath(string path)
+    {
+        Init();
+        if (path == null)
         {
             return;
         }
 
-        Jyx2ResourceHelper.LoadAsset<AudioClip>(path, audioClip=> {
-            if (audioClip != null)
-            {
-                var audioSource = GetAudioSource();
-                audioSource.clip = audioClip;
-                audioSource.Play();
-                _currentPlayMusic = path;
-            }
-        });
+        var audioClip = await ResLoader.LoadAsset<AudioClip>(path);
+
+        if (audioClip != null)
+        {
+            bgmAudioSource.clip = audioClip;
+            bgmAudioSource.Play();
+        }
     }
 
-    static string _currentPlayMusic;
+    private static AudioSource _bgmAudioSource = null;
 
-    static AudioSource s_AudioSource = null;
-
-    static private AudioSource GetAudioSource()
+    private static AudioSource bgmAudioSource
     {
-        if (s_AudioSource != null)
-            return s_AudioSource;
+        get
+        {
+            if (_bgmAudioSource == null)
+            {
+                GameObject obj = new GameObject("[AudioManager]");
+                GameObject.DontDestroyOnLoad(obj);
+                _bgmAudioSource = obj.AddComponent<AudioSource>();
+                _bgmAudioSource.loop = true;
+            }
 
-        GameObject obj = new GameObject("[AudioManager]");
-        GameObject.DontDestroyOnLoad(obj);
-        s_AudioSource = obj.AddComponent<AudioSource>();
-        s_AudioSource.loop = true;
-        return s_AudioSource;
+            return _bgmAudioSource;
+        }
+    }
+
+    private static bool _hasInitialized = false;
+
+    private static void Init()
+    {
+        if (_hasInitialized)
+            return;
+
+        GameSettingManager.SubscribeEnforceEvent(
+            GameSettingManager.Catalog.Volume, (volume) => { bgmAudioSource.volume = (float)volume; },
+            true);
+
+        _hasInitialized = true;
+    }
+
+    public static AudioClip GetCurrentMusic()
+    {
+        Init();
+        return bgmAudioSource.clip;
+    }
+
+    public static void PlayClipAtPoint(AudioClip clip, Vector3 position)
+    {
+        Init();
+        var soundEffectVolume = GameSettingManager.settings[GameSettingManager.Catalog.SoundEffect];
+        AudioSource.PlayClipAtPoint(clip, position, (float)soundEffectVolume);
+    }
+
+    public static async UniTask PlayClipAtPoint(string path, Vector3 position)
+    {
+        Init();
+        var soundEffectVolume = GameSettingManager.settings[GameSettingManager.Catalog.SoundEffect];
+        var clip = await ResLoader.LoadAsset<AudioClip>(path);
+        AudioSource.PlayClipAtPoint(clip, position, (float)soundEffectVolume);
     }
 }

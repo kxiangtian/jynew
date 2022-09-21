@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6086381050528353482}
-  - component: {fileID: 2096510646120046216}
   - component: {fileID: 7135653244391520250}
   m_Layer: 5
   m_Name: CommonTipsUIPanel
@@ -27,7 +26,7 @@ RectTransform:
   m_GameObject: {fileID: 135971575374265115}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0, y: 0, z: 0}
   m_Children:
   - {fileID: 6188923126320682977}
   - {fileID: 2453192533767712875}
@@ -39,27 +38,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!223 &2096510646120046216
-Canvas:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 135971575374265115}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_RenderMode: 0
-  m_Camera: {fileID: 0}
-  m_PlaneDistance: 100
-  m_PixelPerfect: 0
-  m_ReceivesEvents: 1
-  m_OverrideSorting: 0
-  m_OverridePixelPerfect: 0
-  m_SortingBucketNormalizedSize: 0
-  m_AdditionalShaderChannelsFlag: 0
-  m_SortingLayerID: 0
-  m_SortingOrder: 0
-  m_TargetDisplay: 0
 --- !u!114 &7135653244391520250
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -159,6 +137,7 @@ GameObject:
   - component: {fileID: 1385612712544988950}
   - component: {fileID: 4616242296475997681}
   - component: {fileID: 6922709648404143732}
+  - component: {fileID: 6195215865678495003}
   m_Layer: 0
   m_Name: MiddleText
   m_TagString: Untagged
@@ -241,6 +220,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_exportComponentList:
   - {fileID: 4616242296475997681}
+--- !u!114 &6195215865678495003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4496333620539752132}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31aa5e68a18e44879ffe7c0f8953847c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &4904373003150614036
 GameObject:
   m_ObjectHideFlags: 0
@@ -303,7 +294,6 @@ GameObject:
   - component: {fileID: 7876583734362748552}
   - component: {fileID: 4149112010039318812}
   - component: {fileID: 8615856788207415189}
-  - component: {fileID: 4426888222667027050}
   m_Layer: 0
   m_Name: Bg
   m_TagString: Untagged
@@ -369,25 +359,6 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!95 &4426888222667027050
-Animator:
-  serializedVersion: 3
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7227961645304025205}
-  m_Enabled: 1
-  m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: 42456b839c1361344afd5f6598387975, type: 2}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorControllerStateOnDisable: 0
 --- !u!1 &7778487721302867127
 GameObject:
   m_ObjectHideFlags: 0
@@ -400,7 +371,6 @@ GameObject:
   - component: {fileID: 6501845339712529687}
   - component: {fileID: 1983364311859799654}
   - component: {fileID: 6314241559369025088}
-  - component: {fileID: 6703308328301188792}
   - component: {fileID: 7112354579141436382}
   m_Layer: 0
   m_Name: MiddleTopMessageSuggest
@@ -479,19 +449,6 @@ CanvasGroup:
   m_Interactable: 1
   m_BlocksRaycasts: 0
   m_IgnoreParentGroups: 0
---- !u!114 &6703308328301188792
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7778487721302867127}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 380ef8db1f6fce5428f7b0ad240e3bc4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  text: {fileID: 4616242296475997681}
 --- !u!114 &7112354579141436382
 MonoBehaviour:
   m_ObjectHideFlags: 0

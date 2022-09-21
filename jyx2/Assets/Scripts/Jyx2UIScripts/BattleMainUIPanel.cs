@@ -1,6 +1,18 @@
+/*
+ * 金庸群侠传3D重制版
+ * https://github.com/jynew/jynew
+ *
+ * 这是本开源项目文件头，所有代码均使用MIT协议。
+ * 但游戏内资源和第三方插件、dll等请仔细阅读LICENSE相关授权协议文档。
+ *
+ * 金庸老先生千古！
+ */
+
+using System;
 using Jyx2;
 using System.Collections;
 using System.Collections.Generic;
+using i18n.TranslatorDef;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -31,11 +43,11 @@ public partial class BattleMainUIPanel:Jyx2_UIBase
     protected override void OnShowPanel(params object[] allParams)
     {
         base.OnShowPanel(allParams);
-		
-		if(childMgr==null){
-			childMgr = GameUtil.GetOrAddComponent<ChildGoComponent>(BattleHpRoot_RectTransform);
-			childMgr.Init(HUDItem_RectTransform, OnHUDCreate);
-		}
+        
+        if(childMgr==null){
+            childMgr = GameUtil.GetOrAddComponent<ChildGoComponent>(BattleHpRoot_RectTransform);
+            childMgr.Init(HUDItem_RectTransform, OnHUDCreate);
+        }
         BattleMainUIState state = (BattleMainUIState)allParams[0];
         if (state == BattleMainUIState.ShowRole)
         {
@@ -60,9 +72,24 @@ public partial class BattleMainUIPanel:Jyx2_UIBase
         AutoBattle_Toggle.gameObject.SetActive(true);
         CurrentRole_RectTransform.gameObject.SetActive(true);
         NameText_Text.text = m_currentRole.Name;
-        DetailText_Text.text = string.Format("体力 {0}/100\n生命 {1}/{2}\n内力 {3}/{4}", m_currentRole.Tili, m_currentRole.Hp, m_currentRole.MaxHp, m_currentRole.Mp, m_currentRole.MaxMp);
+        var color1 = m_currentRole.GetHPColor1();
+        var color2 = m_currentRole.GetHPColor2();
+        var color = m_currentRole.GetMPColor();
+        //---------------------------------------------------------------------------
+        //DetailText_Text.text = ($"体力 {m_currentRole.Tili}/100\n生命 <color={color1}>{m_currentRole.Hp}</color>/<color={color2}>{m_currentRole.MaxHp}</color>\n内力 <color={color}>{m_currentRole.Mp}/{m_currentRole.MaxMp}</color>");
+        //---------------------------------------------------------------------------
+        //特定位置的翻译【MainMenu右下角当前版本的翻译】
+        //---------------------------------------------------------------------------
+        //Who change the UI to Korean, that is shitty. Changing it back
+        DetailText_Text.text = (string.Format(
+            "体力 {0}/100\n生命 <color={1}>{2}</color>/<color={3}>{4}</color>\n内力 <color={5}>{6 }/{7}</color>".GetContent(nameof(BattleMainUIPanel)),
+            m_currentRole.Tili, color1, m_currentRole.Hp, color2, m_currentRole.MaxHp, color, m_currentRole.Mp,
+            m_currentRole.MaxMp));
 
-        Jyx2ResourceHelper.GetRoleHeadSprite(m_currentRole, PreImage_Image);
+        //---------------------------------------------------------------------------
+        //---------------------------------------------------------------------------
+
+        PreImage_Image.LoadAsyncForget(m_currentRole.Data.GetPic());
     }
 
     void OnAutoBattleValueChange(bool active) 
@@ -75,14 +102,28 @@ public partial class BattleMainUIPanel:Jyx2_UIBase
             role.isAI = active;
         }
 
-        var curRole = BattleStateMechine.Instance.CurrentRole;
-        if(active && curRole != null && curRole.team == 0)
+
+        BattleActionUIPanel panel = FindObjectOfType<BattleActionUIPanel>();
+        if (panel != null )
         {
-            BattleStateMechine.Instance.SwitchState(BattleManager.BattleViewStates.AI);
-        }         
+            var role = panel.GetCurrentRole();
+            if (role != null && active && role.team == 0)
+            {
+                panel.OnAutoClicked();
+            }
+        }
     }
 
-    void OnHUDCreate(Transform hudTrans) 
+	public override void Update()
+	{
+        //battle action ui handles update by itself, this is calling it twice
+
+        //BattleActionUIPanel panel = FindObjectOfType<BattleActionUIPanel>();
+        //if (panel != null)
+        //    panel.Update();
+	}
+
+	void OnHUDCreate(Transform hudTrans) 
     {
         HUDItem item = GameUtil.GetOrAddComponent<HUDItem>(hudTrans);
         item.Init();
@@ -103,13 +144,13 @@ public partial class BattleMainUIPanel:Jyx2_UIBase
             item.BindRole(role);
         }
     }
-	
-	protected override void OnHidePanel()
+    
+    protected override void OnHidePanel()
     {
         base.OnHidePanel();
         AutoBattle_Toggle.isOn = false;
         AutoBattle_Toggle.gameObject.SetActive(false);
-		childMgr=null;
-		m_currentRole=null;
-	}
+        childMgr=null;
+        m_currentRole=null;
+    }
 }

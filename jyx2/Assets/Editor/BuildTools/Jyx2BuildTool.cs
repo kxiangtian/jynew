@@ -1,12 +1,10 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using Jyx2.Editor;
-using NPOI.OpenXml4Net.OPC.Internal;
+using CSObjectWrapEditor;
 using UnityEditor;
-using UnityEditor.AddressableAssets.Settings;
 using UnityEngine;
+using XLua;
 
 namespace Jyx2Editor.BuildTool
 {
@@ -76,6 +74,10 @@ namespace Jyx2Editor.BuildTool
                 throw new System.Exception(
                     string.Format("{0} is Unknown Build Platform ! Build Failture!", buildTarget));
             }
+                    
+            
+            //生成ab包
+            BuildPipeline.BuildAssetBundles("Assets/StreamingAssets", BuildAssetBundleOptions.ChunkBasedCompression, buildTarget);
 
             //设置参数
             SetBuildParams(buildTargetGroup);
@@ -107,6 +109,13 @@ namespace Jyx2Editor.BuildTool
             //     PlayerSettings.Android.keyaliasPass = "password";
             // }
 
+            string currentDate = DateTime.Now.ToString("yyyyMMdd");
+            //设置版本号
+            PlayerSettings.bundleVersion = currentDate;
+            
+            PlayerSettings.Android.keystorePass = "123456";
+            PlayerSettings.Android.keyaliasPass = "123456";
+            
             var csDefineSymbol = GetEnvironmentVariable(EnvOption.CS_DEF_SYMBOL);
             if (!string.IsNullOrEmpty(csDefineSymbol))
             {
@@ -163,14 +172,12 @@ namespace Jyx2Editor.BuildTool
 
             AssetDatabase.SaveAssets();
 
-            //重新生成Addressable相关文件
-            AddressableAssetSettings.BuildPlayerContent();
-
-            //强制GENDATA
-            GenDataMenuCmd.GenerateDataForce();
-
-            // 处理场景文件
-            AddScenesToBuildTool.AddScenesToBuild();
+            //生成luaWrap
+            DelegateBridge.Gen_Flag = true;
+            Generator.ClearAll();
+            Generator.GenAll();
+            
+            AssetDatabase.Refresh();
 
             //打包
             BuildPipeline.BuildPlayer(buildPlayerOptions);

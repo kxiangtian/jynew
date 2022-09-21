@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine.UI;
 using System.Reflection;
-using HSFrameWork.Common;
-using HSUI;
 
 public class DebugTools : EditorWindow
 {
@@ -92,7 +90,7 @@ public class DebugTools : EditorWindow
 
     void ExecuteCommand(string cmd)
     {
-        StoryEngine.Instance.ExecuteCommand(cmd, null);        
+        Jyx2Console.RunConsoleCommand(cmd);
     }
 
     public static void SetSize(int index)
